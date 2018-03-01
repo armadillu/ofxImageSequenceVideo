@@ -17,6 +17,7 @@ public:
 	static const int maxFramePingPingDataStructs = 10;
 
 	ofxImageSequenceVideo();
+	~ofxImageSequenceVideo();
 
 	void setup(int bufferSize, int numThreads = std::thread::hardware_concurrency());
 
@@ -27,12 +28,17 @@ public:
 	void play();
 	void pause();
 
-	void setPosition();
+	void advanceOneFrame();
+
+	void setPosition(float normalizedPos);
+	void setLoop(bool loop);
 
 	int getCurrentFrameNum();
 	int getNumFrames();
 
 	bool arePixelsNew();
+
+	void eraseAllPixelCache();
 
 	ofPixels& getPixels();
 	ofTexture& getTexture();
@@ -53,6 +59,7 @@ protected:
 	enum PixelState{
 		NOT_LOADED,
 		LOADING,
+		THREAD_FINISHED_LOADING,
 		LOADED
 	};
 
@@ -65,8 +72,11 @@ protected:
 	bool loaded = false;
 	string imgSequencePath;
 
+	void advanceFrameInternal();
 	void handleThreadCleanup();
 	void handleThreadSpawn();
+
+	void handleLooping();
 
 	int currentFrame = 0;
 	float frameOnScreenTime = 0;
@@ -85,7 +95,6 @@ protected:
 	//old struct, without having ot worry about destroying the memory they are working on
 
 	ofTexture tex;
-	int texFrameData = -1; //the tex has data about this frame
 
 	vector<std::future<int>> tasks; //store thread futures
 
@@ -93,5 +102,7 @@ protected:
 	int numThreads = 3;
 
 	int loadFrameThread(int frame);
+
+	void eraseOutOfBufferPixelCache();
 };
 

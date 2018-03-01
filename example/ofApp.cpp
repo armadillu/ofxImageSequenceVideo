@@ -14,8 +14,8 @@ void ofApp::setup(){
 	RUI_NEW_GROUP("PARAMS");
 	RUI_SHARE_PARAM(p1, -1, 1);
 
-	int numThreads = 10;
-	int buffer = 20;
+	int numThreads = 2;
+	int buffer = 3 * numThreads;
 	video.setup(buffer, numThreads);
 	video.loadImageSequence("Bouncing_Ball_v2_SOURCE_imgSequence", 60);
 	video.play();
@@ -33,7 +33,7 @@ void ofApp::draw(){
 
 	ofTexture & tex = video.getTexture();
 	if(tex.isAllocated()){
-		tex.draw(0,0);
+		tex.draw(0,0, ofGetWidth(), ofGetHeight());
 	}
 	video.drawDebug(20, 20, ofGetWidth() - 40);
 }
@@ -44,6 +44,27 @@ void ofApp::keyPressed(int key){
 	if(key == 'w'){
 		screenSetup.cycleToNextScreenMode();
 	}
+
+	if(key == '1'){
+		video.play();
+	}
+
+	if(key == '2'){
+		video.pause();
+	}
+
+	if(key == '3'){
+		video.advanceOneFrame();
+	}
+
+	if(key == '4'){
+		video.setPosition(ofRandom(1));
+	}
+
+	if(key == '0'){
+		video.eraseAllPixelCache();
+	}
+
 }
 
 
