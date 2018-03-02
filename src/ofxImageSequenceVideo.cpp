@@ -238,13 +238,14 @@ void ofxImageSequenceVideo::drawDebug(float x, float y, float w){
 		auto state = CURRENT_FRAME_ALT[(currentFrame + i)%numFrames].state;
 		if(state == THREAD_FINISHED_LOADING || state == LOADED) numLoaded++;
 	}
+	bufferFullness = ofLerp(bufferFullness,(numLoaded / float(numBufferFrames)), 0.1);
 
 	ofSetColor(255,0,0);
 	float triangleH = MAX(h, 10);
 	float xx = step * (currentFrame + 0.5);
 	ofDrawTriangle(xx, 0, xx + triangleH * 0.5f, -triangleH, xx - triangleH * 0.5f, -triangleH);
 
-	msg += "\nBuffer: " + ofToString(100 * (numLoaded / float(numBufferFrames)), 1) + "%";
+	msg += "\nBuffer: " + ofToString(100 * bufferFullness, 1) + "%";
 	msg += "\nloadTimeAvg: " + ofToString(loadTimeAvg, 2) + "ms";
 	ofDrawBitmapStringHighlight(msg, 0, 16 + h * 1.25);
 	ofPopMatrix();

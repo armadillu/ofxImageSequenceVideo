@@ -112,5 +112,7 @@ protected:
 	ofxImageSequenceVideo::LoadResults loadFrameThread(int frame);
 
 	void eraseOutOfBufferPixelCache();
+
+	float bufferFullness = 0.0; //just to smooth out buffer len
 };
 

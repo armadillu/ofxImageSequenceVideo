@@ -14,14 +14,17 @@ void ofApp::setup(){
 	RUI_NEW_GROUP("PARAMS");
 	RUI_SHARE_PARAM(drawDebug);
 
-	int numThreads = 2;
-	int buffer = 10; //MAX(1.5 * numThreads, 8);
-	float framerate = 60;
+	int numThreads = 1;
+	int buffer = 6; //MAX(1.5 * numThreads, 8);
+	float framerate = 30;
 
 	vector<string> videoNames = {
-		"TGA_compressed_imgSequence",
-		"JPEG_imgSequence",
-		"TGA_imgSequence",
+		"jpeg",
+		"compressed_tga",
+		"tga",
+		"jpeg",
+		"compressed_tga",
+		"tga",
 		//"PNG_imgSequence",
 		//"JPG2000_imgSequence",
 		//"TIFF_imgSequence",
