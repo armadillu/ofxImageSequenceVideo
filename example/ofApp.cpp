@@ -14,7 +14,7 @@ void ofApp::setup(){
 	RUI_NEW_GROUP("PARAMS");
 	RUI_SHARE_PARAM(drawDebug);
 
-	int numThreads = 1;
+	int numThreads = 2;
 	int buffer = 6; //MAX(1.5 * numThreads, 8);
 	float framerate = 30;
 

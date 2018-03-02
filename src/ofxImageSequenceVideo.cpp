@@ -112,6 +112,14 @@ void ofxImageSequenceVideo::update(float dt){
 	handleLooping();
 	handleThreadCleanup();
 	handleThreadSpawn();
+
+	int numLoaded = 0;
+	for(int i = 0; i < numBufferFrames; i++){
+		auto state = CURRENT_FRAME_ALT[(currentFrame + i)%numFrames].state;
+		if(state == THREAD_FINISHED_LOADING || state == LOADED) numLoaded++;
+	}
+	bufferFullness = ofLerp(bufferFullness,(numLoaded / float(numBufferFrames)), 0.1);
+
 }
 
 void ofxImageSequenceVideo::handleLooping(){
@@ -149,6 +157,11 @@ void ofxImageSequenceVideo::handleThreadSpawn(){
 	int numToSpawn = numThreads - tasks.size();
 	int frameToLoad = currentFrame;
 	int furthestFrame = currentFrame + numBufferFrames;
+
+	if(bufferFullness > 0.75){ //dont overspawn if we have enought data already
+		numToSpawn = ofClamp(numToSpawn, 0, 1);
+	}
+
 	for(int i = 0; i < numToSpawn; i++ ){
 		//look for a frame that needs loading
 		while(CURRENT_FRAME_ALT[frameToLoad%numFrames].state != NOT_LOADED ){
@@ -232,13 +245,6 @@ void ofxImageSequenceVideo::drawDebug(float x, float y, float w){
 	string msg;
 	msg += "frame: " + ofToString(currentFrame) + "/" + ofToString(numFrames);
 	msg += "\nnum Tasks: " + ofToString(tasks.size()) + "/" + ofToString(numThreads);
-
-	int numLoaded = 0;
-	for(int i = 0; i < numBufferFrames; i++){
-		auto state = CURRENT_FRAME_ALT[(currentFrame + i)%numFrames].state;
-		if(state == THREAD_FINISHED_LOADING || state == LOADED) numLoaded++;
-	}
-	bufferFullness = ofLerp(bufferFullness,(numLoaded / float(numBufferFrames)), 0.1);
 
 	ofSetColor(255,0,0);
 	float triangleH = MAX(h, 10);
