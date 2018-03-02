@@ -14,15 +14,14 @@ ofxImageSequenceVideo::ofxImageSequenceVideo(){}
 
 ofxImageSequenceVideo::~ofxImageSequenceVideo(){
 
+	//wait for all threads to end
 	for(int i = tasks.size() - 1; i >= 0; i--){
-
 		std::future_status status = tasks[i].wait_for(std::chrono::microseconds(0));
 		while(status != std::future_status::ready){
 			ofSleepMillis(5);
 			status = tasks[i].wait_for(std::chrono::microseconds(0));
 		}
 	}
-
 }
 
 void ofxImageSequenceVideo::setup(int bufferSize, int numThreads){
@@ -36,10 +35,13 @@ void ofxImageSequenceVideo::loadImageSequence(const string & path, float frameRa
 	ofDirectory dir;
 	dir.allowExt("tga");
 	dir.allowExt("jpeg");
-	dir.allowExt("bmp");
 	dir.allowExt("jpg");
+	dir.allowExt("jp2");
+	dir.allowExt("bmp");
+	dir.allowExt("png");
 	dir.allowExt("tiff");
 	dir.allowExt("tif");
+	dir.allowExt("ppm");
 	dir.sort();
 	int num = dir.listDir(path);
 
@@ -86,7 +88,7 @@ void ofxImageSequenceVideo::update(float dt){
 	if(!tex.isAllocated() && pixelsAreReady){ //allocate tex if not allocated || if img size is different
 		ofPixels & pix = CURRENT_FRAME_ALT[currentFrame].pixels;
 		if(tex.getWidth() != pix.getWidth() || tex.getHeight() != pix.getHeight()){
-			tex.allocate(pix);
+			tex.allocate(pix, false);
 		}
 	}
 
@@ -96,10 +98,12 @@ void ofxImageSequenceVideo::update(float dt){
 		newData = true;
 	}
 
+	PixelState state = CURRENT_FRAME_ALT[currentFrame].state;
+
 	//note we hold playback until pixels are ready (instead of dropping frames)
-	if(pixelsAreReady && (frameOnScreenTime >= frameDuration) && (shouldLoop ||
-												(!shouldLoop && (currentFrame <= (numFrames - 1)))
-												)
+	if(playback && (state == THREAD_FINISHED_LOADING|| state == LOADED) &&
+	   (frameOnScreenTime >= frameDuration) &&
+	   (shouldLoop || (!shouldLoop && (currentFrame <= (numFrames - 1))))
 	   ){
 		frameOnScreenTime -= frameDuration;
 		advanceFrameInternal();
@@ -132,7 +136,8 @@ void ofxImageSequenceVideo::handleThreadCleanup(){
 		//see if thread is done, gather results and remove from vector
 		std::future_status status = tasks[i].wait_for(std::chrono::microseconds(0));
 		if(status == std::future_status::ready){
-			int frame = tasks[i].get();
+			LoadResults results = tasks[i].get();
+			loadTimeAvg = ofLerp(loadTimeAvg, results.elapsedTime, 0.1);
 			//ofLogNotice("ofxImageSequenceVideo") << ofGetFrameNum() << " - frame loaded! " << frame;
 			tasks.erase(tasks.begin() + i);
 		}
@@ -153,17 +158,21 @@ void ofxImageSequenceVideo::handleThreadSpawn(){
 			int moduloFrameToLoad = frameToLoad%numFrames;
 			//ofLogNotice("ofxImageSequenceVideo") << ofGetFrameNum() << " - spawn thread to load frame " << moduloFrameToLoad;
 			CURRENT_FRAME_ALT[moduloFrameToLoad].state = LOADING;
-			tasks.push_back( std::async(std::launch::async, &ofxImageSequenceVideo::loadFrameThread, this, moduloFrameToLoad));
+			tasks.push_back( std::async(std::launch::async, &ofxImageSequenceVideo::loadFrameThread, this, moduloFrameToLoad) );
 		}
 	}
 }
 
 
-int ofxImageSequenceVideo::loadFrameThread(int frame){
-	//ofSleepMillis(10);
+ofxImageSequenceVideo::LoadResults ofxImageSequenceVideo::loadFrameThread(int frame){
+	uint64_t t = ofGetElapsedTimeMicros();
 	ofLoadImage(CURRENT_FRAME_ALT[frame].pixels, CURRENT_FRAME_ALT[frame].filePath);
 	CURRENT_FRAME_ALT[frame].state = THREAD_FINISHED_LOADING;
-	return frame;
+	t = ofGetElapsedTimeMicros() - t;
+	LoadResults results;
+	results.elapsedTime = t / 1000.0f;
+	results.frame = frame;
+	return results;
 }
 
 
@@ -201,36 +210,48 @@ void ofxImageSequenceVideo::drawDebug(float x, float y, float w){
 	ofTranslate(x, y);
 	float step = w / CURRENT_FRAME_ALT.size();
 	float sw = step * 0.7;
-	float h = 10;
+	float pad = step - sw;
+	float h = sw;
+
+	ofSetColor(255,128);
+	ofDrawRectangle(step * currentFrame, -h, step * numBufferFrames, h * 3 );
+	ofSetColor(0);
+	ofDrawRectangle(0, - h * 0.25, w, h * 1.5);
+	ofSetColor(255);
 
 	for(int i = 0; i < numFrames; i++){
 		switch (CURRENT_FRAME_ALT[i].state) {
-			case NOT_LOADED: ofSetColor(100); break;
-			case LOADING: ofSetColor(255,255,0); break;
-			case THREAD_FINISHED_LOADING: ofSetColor(0,255,100); break;
-			case LOADED: ofSetColor(0,255,0); break;
+			case NOT_LOADED: ofSetColor(99); break;
+			case LOADING: ofSetColor(255,255,0); break; //yellow
+			case THREAD_FINISHED_LOADING: ofSetColor(0,255,0); break; //green
+			case LOADED: ofSetColor(255,0,255); break; //magenta
 		}
-		ofDrawRectangle(i * step, 0, sw, h);
+		ofDrawRectangle(pad * 0.5f + i * step, 0, sw, h);
 	}
 
-	ofSetColor(255,0,0);
-	ofDrawTriangle(step * (currentFrame + 0.5), 0, step * (currentFrame), -h, step * (currentFrame + 1), -h);
-
-	ofSetColor(15, 200,66);
-	ofDrawRectangle(step * currentFrame, h * 1.2, step * numBufferFrames, h * 0.3);
-	ofSetColor(255);
-	string msg = "num Tasks: " + ofToString(tasks.size()) + "/" + ofToString(numThreads);
+	string msg;
+	msg += "frame: " + ofToString(currentFrame) + "/" + ofToString(numFrames);
+	msg += "\nnum Tasks: " + ofToString(tasks.size()) + "/" + ofToString(numThreads);
 
 	int numLoaded = 0;
 	for(int i = 0; i < numBufferFrames; i++){
-		if(CURRENT_FRAME_ALT[(currentFrame + i)%numFrames].state == THREAD_FINISHED_LOADING) numLoaded++;
+		auto state = CURRENT_FRAME_ALT[(currentFrame + i)%numFrames].state;
+		if(state == THREAD_FINISHED_LOADING || state == LOADED) numLoaded++;
 	}
 
+	ofSetColor(255,0,0);
+	float triangleH = MAX(h, 10);
+	float xx = step * (currentFrame + 0.5);
+	ofDrawTriangle(xx, 0, xx + triangleH * 0.5f, -triangleH, xx - triangleH * 0.5f, -triangleH);
+
 	msg += "\nBuffer: " + ofToString(100 * (numLoaded / float(numBufferFrames)), 1) + "%";
-	ofDrawBitmapStringHighlight(msg, 0, h * 3);
+	msg += "\nloadTimeAvg: " + ofToString(loadTimeAvg, 2) + "ms";
+	ofDrawBitmapStringHighlight(msg, 0, 16 + h * 1.25);
 	ofPopMatrix();
 
+	ofSetColor(255);
 }
+
 
 void ofxImageSequenceVideo::advanceFrameInternal(){
 	if(!loaded) return;
@@ -250,6 +271,7 @@ void ofxImageSequenceVideo::advanceOneFrame(){
 	if(!loaded) return;
 	advanceFrameInternal();
 	handleLooping();
+	eraseOutOfBufferPixelCache();
 }
 
 void ofxImageSequenceVideo::play(){
@@ -264,14 +286,12 @@ void ofxImageSequenceVideo::pause(){
 }
 
 
-
 void ofxImageSequenceVideo::setPosition(float normalizedPos){
 	if(!loaded) return;
 	currentFrame = ofClamp(normalizedPos,0,1) * (numFrames-1);
 	frameOnScreenTime = 0;
 	eraseOutOfBufferPixelCache();
 }
-
 
 
 int ofxImageSequenceVideo::getCurrentFrameNum(){
@@ -282,7 +302,6 @@ int ofxImageSequenceVideo::getCurrentFrameNum(){
 int ofxImageSequenceVideo::getNumFrames(){
 	if(!loaded) return -1;
 }
-
 
 
 bool ofxImageSequenceVideo::arePixelsNew(){

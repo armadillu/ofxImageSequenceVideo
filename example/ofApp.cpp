@@ -12,30 +12,81 @@ void ofApp::setup(){
 
 	// PARAMS
 	RUI_NEW_GROUP("PARAMS");
-	RUI_SHARE_PARAM(p1, -1, 1);
+	RUI_SHARE_PARAM(drawDebug);
 
 	int numThreads = 2;
-	int buffer = 3 * numThreads;
-	video.setup(buffer, numThreads);
-	video.loadImageSequence("Bouncing_Ball_v2_SOURCE_imgSequence", 60);
-	video.play();
+	int buffer = 10; //MAX(1.5 * numThreads, 8);
+	float framerate = 60;
+
+	vector<string> videoNames = {
+		"TGA_compressed_imgSequence",
+		"JPEG_imgSequence",
+		"TGA_imgSequence",
+		//"PNG_imgSequence",
+		//"JPG2000_imgSequence",
+		//"TIFF_imgSequence",
+		//"PPM_imgSequence"
+	};
+
+	for(const auto & n : videoNames){
+		VideoUnit * v = new VideoUnit();
+		v->name = n;
+		v->video.setup(buffer, numThreads);
+		v->video.loadImageSequence(v->name, framerate);
+		v->video.play();
+		videos.push_back(v);
+	}
 }
 
 
 void ofApp::update(){
 
 	float dt = 1./60.;
-	video.update(dt);
+	TSGL_START("videos update");
+
+	for(auto & v : videos){
+		TS_START(v->name);
+		v->video.update(dt);
+		TS_STOP(v->name);
+	}
+	TSGL_STOP("videos update");
 }
 
 
 void ofApp::draw(){
 
-	ofTexture & tex = video.getTexture();
-	if(tex.isAllocated()){
-		tex.draw(0,0, ofGetWidth(), ofGetHeight());
+	int n = videos.size();
+	int columns = (int)sqrt(n);
+	int rows = (int)ceil(n / (float)columns);
+
+	float gridW = ofGetWidth() / columns;
+	float gridH = ofGetHeight() / rows;
+	float pad = 20;
+
+	int c = 0;
+	for(auto & v : videos){
+		int i = (c % columns);
+		int j = floor(c / columns);
+		float x = i * gridW + pad * 0.5;
+		float y = j * gridH + pad * 0.5;
+		TS_START(v->name);
+		v->video.getTexture().draw(x,y, gridW - pad, gridH - pad);
+		float margin = 10;
+		if(drawDebug) v->video.drawDebug(x + margin, y + margin, gridW - pad - 2 * margin);
+		TS_STOP(v->name);
+		ofDrawBitmapStringHighlight( v->name, x, y  + gridH - 1 * pad);
+		if(c == selectedVideo){
+			ofNoFill();
+			int lineW = 5;
+			ofSetLineWidth(lineW);
+			ofSetColor(255,0,0);
+			ofDrawRectangle(i * gridW + lineW, j * gridH + lineW, gridW - 2 * lineW, gridH - 2 * lineW);
+			ofSetColor(255);
+			ofSetLineWidth(1);
+			ofFill();
+		}
+		c++;
 	}
-	video.drawDebug(20, 20, ofGetWidth() - 40);
 }
 
 
@@ -45,26 +96,37 @@ void ofApp::keyPressed(int key){
 		screenSetup.cycleToNextScreenMode();
 	}
 
+	int i = selectedVideo;
 	if(key == '1'){
-		video.play();
+		videos[i]->video.play();
 	}
 
 	if(key == '2'){
-		video.pause();
+		videos[i]->video.pause();
 	}
 
 	if(key == '3'){
-		video.advanceOneFrame();
+		videos[i]->video.advanceOneFrame();
 	}
 
 	if(key == '4'){
-		video.setPosition(ofRandom(1));
+		float pos = ofRandom(1);
+		videos[i]->video.setPosition(pos);
 	}
 
 	if(key == '0'){
-		video.eraseAllPixelCache();
+		videos[i]->video.eraseAllPixelCache();
 	}
 
+	if(key == OF_KEY_RIGHT || key == OF_KEY_DOWN){
+		selectedVideo ++;
+		if(selectedVideo > videos.size()-1) selectedVideo = 0;
+	}
+
+	if(key == OF_KEY_LEFT || key == OF_KEY_UP){
+		selectedVideo--;
+		if(selectedVideo < 0) selectedVideo = videos.size()-1;
+	}
 }
 
 

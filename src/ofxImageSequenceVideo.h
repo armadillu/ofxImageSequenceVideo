@@ -67,6 +67,7 @@ protected:
 		string filePath;
 		ofPixels pixels;
 		PixelState state = NOT_LOADED;
+		float loadTime = 0; //ms
 	};
 
 	bool loaded = false;
@@ -96,12 +97,19 @@ protected:
 
 	ofTexture tex;
 
-	vector<std::future<int>> tasks; //store thread futures
+	struct LoadResults{
+		int frame;
+		float elapsedTime;
+	};
+
+	float loadTimeAvg = 0.0;
+
+	vector<std::future<LoadResults>> tasks; //store thread futures
 
 	int numBufferFrames = 8;
 	int numThreads = 3;
 
-	int loadFrameThread(int frame);
+	ofxImageSequenceVideo::LoadResults loadFrameThread(int frame);
 
 	void eraseOutOfBufferPixelCache();
 };

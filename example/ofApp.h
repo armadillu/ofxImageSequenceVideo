@@ -29,8 +29,15 @@ public:
 
 
 	// APP SETUP ////////////////////////////////////////////
-	float p1;
+
+	struct VideoUnit{
+		string name;
+		ofxImageSequenceVideo video;
+	};
+
+	vector<VideoUnit*> videos;
+	int selectedVideo = 0;
+	bool drawDebug;
 
 
-	ofxImageSequenceVideo video;
 };
