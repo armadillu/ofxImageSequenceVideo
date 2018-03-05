@@ -4,12 +4,13 @@
 #include "CustomApp.h"
 #include "ofxImageSequenceVideo.h"
 
-class ofApp : public CustomApp{
+class ofApp : public CustomApp, public ofThread{
 
 public:
 	void setup();
 	void update();
 	void draw();
+	void exit();
 
 	void keyPressed(int key);
 	void keyReleased(int key);
@@ -39,5 +40,9 @@ public:
 	int selectedVideo = 0;
 	bool drawDebug;
 
+	void threadedFunction();
+
+	std::mutex mutex;
+	ofPixels threadPixels;
 
 };

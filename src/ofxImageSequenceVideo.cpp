@@ -7,6 +7,7 @@
 //
 
 #include "ofxImageSequenceVideo.h"
+#include "ofxTimeMeasurements.h"
 
 #define CURRENT_FRAME_ALT frames[currentFrameSet]
 
@@ -24,10 +25,12 @@ ofxImageSequenceVideo::~ofxImageSequenceVideo(){
 	}
 }
 
+
 void ofxImageSequenceVideo::setup(int bufferSize, int numThreads){
 	this->numBufferFrames = bufferSize;
 	this->numThreads = numThreads;
 }
+
 
 void ofxImageSequenceVideo::loadImageSequence(const string & path, float frameRate){
 
@@ -51,7 +54,7 @@ void ofxImageSequenceVideo::loadImageSequence(const string & path, float frameRa
 		numFrames = num;
 		frameDuration = 1.0 / frameRate;
 		currentFrame = 0;
-		frameOnScreenTime = 0.0f;
+		frameOnScreenTime = -1; //force a data load!
 		newData = false;
 		tex.clear();
 
@@ -64,12 +67,13 @@ void ofxImageSequenceVideo::loadImageSequence(const string & path, float frameRa
 		for(int i = 0; i < num; i++){
 			CURRENT_FRAME_ALT[i].filePath = dir.getPath(i);
 		}
-		handleThreadSpawn();
+		if(numThreads > 0){
+			handleThreadSpawn();
+		}
 	}else{
 		loaded = false;
 	}
 }
-
 
 
 void ofxImageSequenceVideo::update(float dt){
@@ -83,52 +87,74 @@ void ofxImageSequenceVideo::update(float dt){
 		frameOnScreenTime += dt;
 	}
 
-	bool pixelsAreReady = CURRENT_FRAME_ALT[currentFrame].state == THREAD_FINISHED_LOADING;
+	if(numThreads > 0){ //async mode - spawn threads to load frames in the future and wait for them to be done / sync
 
-	if(!tex.isAllocated() && pixelsAreReady){ //allocate tex if not allocated || if img size is different
-		ofPixels & pix = CURRENT_FRAME_ALT[currentFrame].pixels;
-		if(tex.getWidth() != pix.getWidth() || tex.getHeight() != pix.getHeight()){
-			tex.allocate(pix, false);
+		bool pixelsAreReady = CURRENT_FRAME_ALT[currentFrame].state == THREAD_FINISHED_LOADING;
+
+		if(pixelsAreReady){ //1st update() call in which the pixels are available - load to GPU and change state to LOADED
+			if(shouldLoadTexture){
+				tex.loadData(CURRENT_FRAME_ALT[currentFrame].pixels);
+			}
+			CURRENT_FRAME_ALT[currentFrame].state = LOADED;
+			newData = true;
+		}
+
+		PixelState state = CURRENT_FRAME_ALT[currentFrame].state;
+
+		//note we hold playback until pixels are ready (instead of dropping frames)
+		if(playback && (state == THREAD_FINISHED_LOADING|| state == LOADED) &&
+		   (frameOnScreenTime >= frameDuration || frameOnScreenTime < 0.0f) &&
+		   (shouldLoop || (!shouldLoop && (currentFrame <= (numFrames - 1))))
+		   ){
+			handleScreenTimeCounters(dt);
+			advanceFrameInternal();
+		}
+
+		handleLooping(true);
+		handleThreadCleanup();
+		handleThreadSpawn();
+
+		int numLoaded = 0;
+		for(int i = 0; i < numBufferFrames; i++){
+			auto state = CURRENT_FRAME_ALT[(currentFrame + i)%numFrames].state;
+			if(state == THREAD_FINISHED_LOADING || state == LOADED) numLoaded++;
+		}
+		bufferFullness = ofLerp(bufferFullness,(numLoaded / float(numBufferFrames)), 0.1);
+
+	}else{ //inmediate mode, we load what we need on demand on the main frame blocking
+
+		if(playback && (frameOnScreenTime >= frameDuration || frameOnScreenTime < 0.0f) &&
+		   (shouldLoop || (!shouldLoop && (currentFrame <= (numFrames - 1))))
+		   ){
+			handleScreenTimeCounters(dt);
+			int oldFrame = currentFrame;
+			advanceFrameInternal();
+			handleLooping(true);
+			if(oldFrame != currentFrame){ //data is not new if we are not looping and we are stuck in the last frame
+				newData = true;
+				loadPixelsNow(currentFrame, oldFrame);
+			}
+		}
+
+		if(texNeedsLoad && shouldLoadTexture){
+			texNeedsLoad = false;
+			TS_START("inmediate load pix GPU");
+			tex.loadData(currentPixels);
+			TS_STOP("inmediate load pix GPU");
 		}
 	}
-
-	if(tex.isAllocated() && pixelsAreReady){
-		tex.loadData(CURRENT_FRAME_ALT[currentFrame].pixels);
-		CURRENT_FRAME_ALT[currentFrame].state = LOADED;
-		newData = true;
-	}
-
-	PixelState state = CURRENT_FRAME_ALT[currentFrame].state;
-
-	//note we hold playback until pixels are ready (instead of dropping frames)
-	if(playback && (state == THREAD_FINISHED_LOADING|| state == LOADED) &&
-	   (frameOnScreenTime >= frameDuration) &&
-	   (shouldLoop || (!shouldLoop && (currentFrame <= (numFrames - 1))))
-	   ){
-		frameOnScreenTime -= frameDuration;
-		advanceFrameInternal();
-	}
-
-	handleLooping();
-	handleThreadCleanup();
-	handleThreadSpawn();
-
-	int numLoaded = 0;
-	for(int i = 0; i < numBufferFrames; i++){
-		auto state = CURRENT_FRAME_ALT[(currentFrame + i)%numFrames].state;
-		if(state == THREAD_FINISHED_LOADING || state == LOADED) numLoaded++;
-	}
-	bufferFullness = ofLerp(bufferFullness,(numLoaded / float(numBufferFrames)), 0.1);
-
 }
 
-void ofxImageSequenceVideo::handleLooping(){
+
+void ofxImageSequenceVideo::handleLooping(bool triggerEvents){
 
 	if(shouldLoop){ //loop movie
 		if(currentFrame >= numFrames){
 			currentFrame = 0;
-			EventInfo info;
-			ofNotifyEvent(eventMovieLooped, info, this);
+			if(triggerEvents){
+				EventInfo info;
+				ofNotifyEvent(eventMovieLooped, info, this);
+			}
 		}
 	}else{ //movie stops at last frame
 		if(currentFrame >= numFrames){
@@ -137,10 +163,10 @@ void ofxImageSequenceVideo::handleLooping(){
 	}
 }
 
+
 void ofxImageSequenceVideo::handleThreadCleanup(){
 	//handle thread spawning / cleaning – if any thread is avialable, put it to work
 	for(int i = tasks.size() - 1; i >= 0; i--){
-
 		//see if thread is done, gather results and remove from vector
 		std::future_status status = tasks[i].wait_for(std::chrono::microseconds(0));
 		if(status == std::future_status::ready){
@@ -152,6 +178,14 @@ void ofxImageSequenceVideo::handleThreadCleanup(){
 	}
 }
 
+
+void ofxImageSequenceVideo::handleScreenTimeCounters(float dt){
+	if(frameOnScreenTime >= 0.0f){
+		frameOnScreenTime -= frameDuration;
+	}else{
+		frameOnScreenTime = dt;
+	}
+}
 
 void ofxImageSequenceVideo::handleThreadSpawn(){
 	int numToSpawn = numThreads - tasks.size();
@@ -226,11 +260,13 @@ void ofxImageSequenceVideo::drawDebug(float x, float y, float w){
 	float pad = step - sw;
 	float h = sw;
 
-	ofSetColor(255,128);
-	ofDrawRectangle(step * currentFrame, -h, step * numBufferFrames, h * 3 );
-	ofSetColor(0);
-	ofDrawRectangle(0, - h * 0.25, w, h * 1.5);
-	ofSetColor(255);
+	if(numThreads > 0){
+		ofSetColor(255,128);
+		ofDrawRectangle(step * currentFrame, -h, step * numBufferFrames, h * 3 );
+		ofSetColor(0);
+		ofDrawRectangle(0, - h * 0.25, w, h * 1.5);
+		ofSetColor(255);
+	}
 
 	for(int i = 0; i < numFrames; i++){
 		switch (CURRENT_FRAME_ALT[i].state) {
@@ -251,7 +287,7 @@ void ofxImageSequenceVideo::drawDebug(float x, float y, float w){
 	float xx = step * (currentFrame + 0.5);
 	ofDrawTriangle(xx, 0, xx + triangleH * 0.5f, -triangleH, xx - triangleH * 0.5f, -triangleH);
 
-	msg += "\nBuffer: " + ofToString(100 * bufferFullness, 1) + "%";
+	if(numThreads > 0) msg += "\nBuffer: " + ofToString(100 * bufferFullness, 1) + "%";
 	msg += "\nloadTimeAvg: " + ofToString(loadTimeAvg, 2) + "ms";
 	ofDrawBitmapStringHighlight(msg, 0, 16 + h * 1.25);
 	ofPopMatrix();
@@ -262,10 +298,12 @@ void ofxImageSequenceVideo::drawDebug(float x, float y, float w){
 
 void ofxImageSequenceVideo::advanceFrameInternal(){
 	if(!loaded) return;
-	if((CURRENT_FRAME_ALT[currentFrame].state == THREAD_FINISHED_LOADING || CURRENT_FRAME_ALT[currentFrame].state == LOADED) &&
-	   CURRENT_FRAME_ALT[currentFrame].pixels.isAllocated()){ //unload old pixels
-		CURRENT_FRAME_ALT[currentFrame].state = NOT_LOADED;
-		CURRENT_FRAME_ALT[currentFrame].pixels.clear();
+	if(numThreads > 0){
+		if((CURRENT_FRAME_ALT[currentFrame].state == THREAD_FINISHED_LOADING || CURRENT_FRAME_ALT[currentFrame].state == LOADED) &&
+		   CURRENT_FRAME_ALT[currentFrame].pixels.isAllocated()){ //unload old pixels
+			CURRENT_FRAME_ALT[currentFrame].state = NOT_LOADED;
+			CURRENT_FRAME_ALT[currentFrame].pixels.clear();
+		}
 	}
 	currentFrame++;
 	if(!shouldLoop && currentFrame == numFrames -1){
@@ -276,9 +314,14 @@ void ofxImageSequenceVideo::advanceFrameInternal(){
 
 void ofxImageSequenceVideo::advanceOneFrame(){
 	if(!loaded) return;
+	int oldFrame = currentFrame;
 	advanceFrameInternal();
-	handleLooping();
-	eraseOutOfBufferPixelCache();
+	handleLooping(false);
+	if(numThreads > 0){
+		eraseOutOfBufferPixelCache();
+	}else{ //inmediate mode - load frame right here
+		loadPixelsNow(currentFrame, oldFrame);
+	}
 }
 
 void ofxImageSequenceVideo::play(){
@@ -292,27 +335,51 @@ void ofxImageSequenceVideo::pause(){
 	playback = false;
 }
 
+void ofxImageSequenceVideo::loadPixelsNow(int newFrame, int oldFrame){
+	if(currentFrame != oldFrame){
+		uint64_t t = ofGetElapsedTimeMicros();
+
+		CURRENT_FRAME_ALT[oldFrame].state = NOT_LOADED;
+		TS_START("inmediate load pix");
+		ofLoadImage(currentPixels, CURRENT_FRAME_ALT[newFrame].filePath); //load pixels from disk
+		TS_STOP("inmediate load pix");
+		CURRENT_FRAME_ALT[newFrame].state = LOADED;
+		loadTimeAvg = ofLerp(loadTimeAvg, (ofGetElapsedTimeMicros() - t) / 1000.0f, 0.1);
+		texNeedsLoad = true;
+	}
+}
 
 void ofxImageSequenceVideo::setPosition(float normalizedPos){
 	if(!loaded) return;
+	int oldFrame = currentFrame;
 	currentFrame = ofClamp(normalizedPos,0,1) * (numFrames-1);
 	frameOnScreenTime = 0;
-	eraseOutOfBufferPixelCache();
+	if(numThreads > 0){
+		eraseOutOfBufferPixelCache();
+	}else{
+		loadPixelsNow(currentFrame, oldFrame);
+	}
 }
 
 
-int ofxImageSequenceVideo::getCurrentFrameNum(){
+int ofxImageSequenceVideo::getCurrentFrame(){
 	if(!loaded) return -1;
+	return currentFrame;
+}
+
+float ofxImageSequenceVideo::getPosition(){
+	if(!loaded) return -1;
+	return (float(currentFrame) / (numFrames-1));
 }
 
 
 int ofxImageSequenceVideo::getNumFrames(){
 	if(!loaded) return -1;
+	return numFrames;
 }
 
 
 bool ofxImageSequenceVideo::arePixelsNew(){
-
 	if(!loaded) return false;
 }
 
@@ -321,10 +388,36 @@ void ofxImageSequenceVideo::setLoop(bool loop){
 	shouldLoop = loop;
 }
 
+void ofxImageSequenceVideo::seekToFrame(int frame){
+	if(!loaded) return;
+	int oldFrame = ofClamp(currentFrame, 0, numFrames-1);
+	currentFrame = frame;
+	frameOnScreenTime = 0;
+	if(numThreads > 0){
+		eraseOutOfBufferPixelCache();
+	}else{
+		loadPixelsNow(currentFrame, oldFrame);
+	}
+}
+
 
 ofPixels& ofxImageSequenceVideo::getPixels(){
 	static ofPixels pix;
 	if(!loaded) return pix;
+	else{
+		if(numThreads > 0){
+			bool pixelsAreReady =
+				CURRENT_FRAME_ALT[currentFrame].state == THREAD_FINISHED_LOADING ||
+				CURRENT_FRAME_ALT[currentFrame].state == LOADED;
+			if(pixelsAreReady){
+				return CURRENT_FRAME_ALT[currentFrame].pixels;
+			}else{
+				return pix;
+			}
+		}else{
+			return currentPixels;
+		}
+	}
 }
 
 

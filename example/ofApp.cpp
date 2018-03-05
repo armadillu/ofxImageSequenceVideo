@@ -1,5 +1,9 @@
 #include "ofApp.h"
 
+void ofApp::exit(){
+	stopThread();
+	waitForThread();
+}
 
 void ofApp::setup(){
 
@@ -14,31 +18,39 @@ void ofApp::setup(){
 	RUI_NEW_GROUP("PARAMS");
 	RUI_SHARE_PARAM(drawDebug);
 
-	int numThreads = 2;
+	int numThreads = 3;
 	int buffer = 6; //MAX(1.5 * numThreads, 8);
-	float framerate = 30;
-
+	float framerate = 60;
+	bool loops = true;
+	bool useTexture = false;
 	vector<string> videoNames = {
 		"jpeg",
 		"compressed_tga",
 		"tga",
-		"jpeg",
-		"compressed_tga",
-		"tga",
+//		"jpeg",
+//		"compressed_tga",
+//		"tga",
 		//"PNG_imgSequence",
 		//"JPG2000_imgSequence",
 		//"TIFF_imgSequence",
 		//"PPM_imgSequence"
 	};
 
+	int c = 0;
 	for(const auto & n : videoNames){
 		VideoUnit * v = new VideoUnit();
 		v->name = n;
-		v->video.setup(buffer, numThreads);
+		v->video.setup(buffer, (c==0) ? 0 : numThreads);
+		//v->video.setup(buffer, numThreads);
 		v->video.loadImageSequence(v->name, framerate);
 		v->video.play();
+		v->video.setLoop(loops);
+		v->video.setUseTexture(useTexture);
 		videos.push_back(v);
+		c++;
 	}
+
+	startThread(); //start of thread to test video object on thread environment
 }
 
 
@@ -73,7 +85,18 @@ void ofApp::draw(){
 		float x = i * gridW + pad * 0.5;
 		float y = j * gridH + pad * 0.5;
 		TS_START(v->name);
-		v->video.getTexture().draw(x,y, gridW - pad, gridH - pad);
+		if(v->video.getTexture().isAllocated()){
+			v->video.getTexture().draw(x,y, gridW - pad, gridH - pad);
+		}else{
+			ofTexture t;
+			ofPixels & pix = v->video.getPixels();
+			if(pix.isAllocated()){
+				t.loadData(pix);
+				t.draw(x,y, gridW - pad, gridH - pad);
+			}else{
+				ofLogWarning() << "pixels not allocated for \"" << v->name << "\"";
+			}
+		}
 		float margin = 10;
 		if(drawDebug) v->video.drawDebug(x + margin, y + margin, gridW - pad - 2 * margin);
 		TS_STOP(v->name);
@@ -90,6 +113,14 @@ void ofApp::draw(){
 		}
 		c++;
 	}
+
+	mutex.lock();
+	if(threadPixels.isAllocated()){
+		ofTexture t;
+		t.loadData(threadPixels);
+		t.draw(ofGetWidth() - 100, 0, 100, 65);
+	}
+	mutex.unlock();
 }
 
 
@@ -117,6 +148,11 @@ void ofApp::keyPressed(int key){
 		videos[i]->video.setPosition(pos);
 	}
 
+	if(key == '5'){
+		int pos = floor(ofRandom(videos[i]->video.getNumFrames()));
+		videos[i]->video.seekToFrame(pos);
+	}
+
 	if(key == '0'){
 		videos[i]->video.eraseAllPixelCache();
 	}
@@ -132,6 +168,24 @@ void ofApp::keyPressed(int key){
 	}
 }
 
+void ofApp::threadedFunction(){
+
+	ofxImageSequenceVideo videoFromThread;
+	videoFromThread.setup(0, 0);
+	videoFromThread.setUseTexture(false);
+	videoFromThread.loadImageSequence("jpeg", 30);
+	videoFromThread.setLoop(true);
+
+	while(isThreadRunning()){
+		int nFrames = videoFromThread.getNumFrames();
+		int curFrame = videoFromThread.getCurrentFrame();
+		int nextFrame = (curFrame + 1) % nFrames;
+		videoFromThread.seekToFrame(nextFrame);
+		mutex.lock();
+		threadPixels = videoFromThread.getPixels();
+		mutex.unlock();
+	}
+}
 
 void ofApp::keyReleased(int key){
 
