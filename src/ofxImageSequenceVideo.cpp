@@ -288,9 +288,9 @@ void ofxImageSequenceVideo::drawDebug(float x, float y, float w){
 		ofDrawRectangle(pad * 0.5f + i * step, 0, sw, h);
 	}
 
-	string msg = numThreads == 0 ? "Mode:Immediate" : "Mode:Async";
-	msg += "\nframe: " + ofToString(currentFrame) + "/" + ofToString(numFrames);
-	if(numThreads > 0) msg += "\nnum Tasks: " + ofToString(tasks.size()) + "/" + ofToString(numThreads);
+	string msg = numThreads == 0 ? "Mode: Immediate" : "Mode: Async";
+	msg += "\nFrame: " + ofToString(currentFrame) + "/" + ofToString(numFrames);
+	if(numThreads > 0) msg += "\nNum Tasks: " + ofToString(tasks.size()) + "/" + ofToString(numThreads);
 
 	ofSetColor(255,0,0);
 	float triangleH = MAX(h, 10);
@@ -298,7 +298,7 @@ void ofxImageSequenceVideo::drawDebug(float x, float y, float w){
 	ofDrawTriangle(xx, 0, xx + triangleH * 0.5f, -triangleH, xx - triangleH * 0.5f, -triangleH);
 
 	if(numThreads > 0) msg += "\nBuffer: " + ofToString(100 * bufferFullness, 1) + "%";
-	msg += "\nloadTimeAvg: " + ofToString(loadTimeAvg, 2) + "ms";
+	msg += "\nLoadTimeAvg: " + ofToString(loadTimeAvg, 2) + "ms";
 	ofDrawBitmapStringHighlight(msg, 0, 16 + h * 1.25);
 	ofPopMatrix();
 
