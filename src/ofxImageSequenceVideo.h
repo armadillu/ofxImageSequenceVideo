@@ -10,6 +10,10 @@
 #include "ofMain.h"
 #include <future>
 
+#if defined(USE_TURBO_JPEG) //you can define this in your pre-processor macros to use turbojpeg to speed up jpeg loading 
+	#include "ofxTurboJpeg.h"
+#endif
+
 class ofxImageSequenceVideo{
 
 public:
@@ -19,11 +23,11 @@ public:
 	ofxImageSequenceVideo();
 	~ofxImageSequenceVideo();
 
-	//There are basically 2 operation modes, async and inmediate. if you specify numThreads = 0,
-	//everyrthing will be in inmediate mode. All work will be done in the main thread, blocking on update().
+	//There are basically 2 operation modes, ASYNC and INMEDIATE. if you specify numThreads = 0,
+	//everyrthing will be in immediate mode. All work will be done in the main thread, blocking on update().
 	//if you specify  numThreads >= 1, threads are spawned to pre-load frames up to the buffer size
 	//you request, so that main thread only loads tex data to GPU (preferred for realtime).
-	//note that bufferSize is irrelevant in inmediate mode.
+	//note that bufferSize is irrelevant in immediate mode.
 	
 	void setup(int bufferSize, int numThreads = std::thread::hardware_concurrency());
 	void setUseTexture(bool useTex){shouldLoadTexture = useTex;};
@@ -108,7 +112,7 @@ protected:
 	//old struct, without having ot worry about destroying the memory they are working on
 
 	ofTexture tex;
-	ofPixels currentPixels; //used in inmediate mode only (numThreads==0)
+	ofPixels currentPixels; //used in immediate mode only (numThreads==0)
 	bool shouldLoadTexture = true; //use setUseTexture() to disable texture load (and GL calls) alltogether
 									//this allows using this class from non-main thread
 
@@ -131,5 +135,6 @@ protected:
 	float bufferFullness = 0.0; //just to smooth out buffer len 
 
 	void loadPixelsNow(int newFrame, int oldFrame);
+	
 };
 

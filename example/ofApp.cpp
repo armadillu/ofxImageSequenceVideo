@@ -18,7 +18,7 @@ void ofApp::setup(){
 	RUI_NEW_GROUP("PARAMS");
 	RUI_SHARE_PARAM(drawDebug);
 
-	int numThreads = 3;
+	int numThreads = 2;
 	int buffer = 6; //MAX(1.5 * numThreads, 8);
 	float framerate = 60;
 	bool loops = true;
@@ -27,7 +27,7 @@ void ofApp::setup(){
 		"jpeg",
 		"compressed_tga",
 		"tga",
-//		"jpeg",
+		"jpeg",
 //		"compressed_tga",
 //		"tga",
 		//"PNG_imgSequence",
@@ -118,7 +118,7 @@ void ofApp::draw(){
 	if(threadPixels.isAllocated()){
 		ofTexture t;
 		t.loadData(threadPixels);
-		t.draw(ofGetWidth() - 100, 0, 100, 65);
+		t.draw(ofGetWidth() - 200, 100, 100, 65);
 	}
 	mutex.unlock();
 }
@@ -173,7 +173,7 @@ void ofApp::threadedFunction(){
 	ofxImageSequenceVideo videoFromThread;
 	videoFromThread.setup(0, 0);
 	videoFromThread.setUseTexture(false);
-	videoFromThread.loadImageSequence("jpeg", 30);
+	videoFromThread.loadImageSequence("jpeg", 60);
 	videoFromThread.setLoop(true);
 
 	while(isThreadRunning()){

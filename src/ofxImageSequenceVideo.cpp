@@ -121,7 +121,7 @@ void ofxImageSequenceVideo::update(float dt){
 		}
 		bufferFullness = ofLerp(bufferFullness,(numLoaded / float(numBufferFrames)), 0.1);
 
-	}else{ //inmediate mode, we load what we need on demand on the main frame blocking
+	}else{ //immediate mode, we load what we need on demand on the main frame blocking
 
 		if(playback && (frameOnScreenTime >= frameDuration || frameOnScreenTime < 0.0f) &&
 		   (shouldLoop || (!shouldLoop && (currentFrame <= (numFrames - 1))))
@@ -138,9 +138,9 @@ void ofxImageSequenceVideo::update(float dt){
 
 		if(texNeedsLoad && shouldLoadTexture){
 			texNeedsLoad = false;
-			TS_START("inmediate load pix GPU");
+			TS_START("immediate load pix GPU");
 			tex.loadData(currentPixels);
-			TS_STOP("inmediate load pix GPU");
+			TS_STOP("immediate load pix GPU");
 		}
 	}
 }
@@ -213,7 +213,17 @@ void ofxImageSequenceVideo::handleThreadSpawn(){
 
 ofxImageSequenceVideo::LoadResults ofxImageSequenceVideo::loadFrameThread(int frame){
 	uint64_t t = ofGetElapsedTimeMicros();
-	ofLoadImage(CURRENT_FRAME_ALT[frame].pixels, CURRENT_FRAME_ALT[frame].filePath);
+	#if defined(USE_TURBO_JPEG)
+	string extension = ofToLower(ofFilePath::getFileExt(CURRENT_FRAME_ALT[frame].filePath));
+	if(extension == "jpeg" || extension == "jpg"){
+		ofxTurboJpeg jpeg;
+		jpeg.load(CURRENT_FRAME_ALT[frame].pixels, CURRENT_FRAME_ALT[frame].filePath);
+	}else{
+		ofLoadImage(CURRENT_FRAME_ALT[frame].pixels, CURRENT_FRAME_ALT[frame].filePath);
+	}
+	#else
+		ofLoadImage(CURRENT_FRAME_ALT[frame].pixels, CURRENT_FRAME_ALT[frame].filePath);
+	#endif
 	CURRENT_FRAME_ALT[frame].state = THREAD_FINISHED_LOADING;
 	t = ofGetElapsedTimeMicros() - t;
 	LoadResults results;
@@ -278,9 +288,9 @@ void ofxImageSequenceVideo::drawDebug(float x, float y, float w){
 		ofDrawRectangle(pad * 0.5f + i * step, 0, sw, h);
 	}
 
-	string msg;
-	msg += "frame: " + ofToString(currentFrame) + "/" + ofToString(numFrames);
-	msg += "\nnum Tasks: " + ofToString(tasks.size()) + "/" + ofToString(numThreads);
+	string msg = numThreads == 0 ? "Mode:Immediate" : "Mode:Async";
+	msg += "\nframe: " + ofToString(currentFrame) + "/" + ofToString(numFrames);
+	if(numThreads > 0) msg += "\nnum Tasks: " + ofToString(tasks.size()) + "/" + ofToString(numThreads);
 
 	ofSetColor(255,0,0);
 	float triangleH = MAX(h, 10);
@@ -319,7 +329,7 @@ void ofxImageSequenceVideo::advanceOneFrame(){
 	handleLooping(false);
 	if(numThreads > 0){
 		eraseOutOfBufferPixelCache();
-	}else{ //inmediate mode - load frame right here
+	}else{ //immediate mode - load frame right here
 		loadPixelsNow(currentFrame, oldFrame);
 	}
 }
@@ -340,9 +350,19 @@ void ofxImageSequenceVideo::loadPixelsNow(int newFrame, int oldFrame){
 		uint64_t t = ofGetElapsedTimeMicros();
 
 		CURRENT_FRAME_ALT[oldFrame].state = NOT_LOADED;
-		TS_START("inmediate load pix");
+		TS_START("immediate load pix");
+		#if defined(USE_TURBO_JPEG)
+		string extension = ofToLower(ofFilePath::getFileExt(CURRENT_FRAME_ALT[newFrame].filePath));
+		if(extension == "jpeg" || extension == "jpg"){
+			ofxTurboJpeg jpeg;
+			jpeg.load(currentPixels, CURRENT_FRAME_ALT[newFrame].filePath);
+		}else{
+			ofLoadImage(currentPixels, CURRENT_FRAME_ALT[newFrame].filePath);
+		}
+		#else
 		ofLoadImage(currentPixels, CURRENT_FRAME_ALT[newFrame].filePath); //load pixels from disk
-		TS_STOP("inmediate load pix");
+		#endif
+		TS_STOP("immediate load pix");
 		CURRENT_FRAME_ALT[newFrame].state = LOADED;
 		loadTimeAvg = ofLerp(loadTimeAvg, (ofGetElapsedTimeMicros() - t) / 1000.0f, 0.1);
 		texNeedsLoad = true;
