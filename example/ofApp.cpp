@@ -19,15 +19,17 @@ void ofApp::setup(){
 	RUI_SHARE_PARAM(drawDebug);
 
 	int numThreads = 2;
-	int buffer = 6; //MAX(1.5 * numThreads, 8);
-	float framerate = 60;
+	int buffer = 30; //MAX(1.5 * numThreads, 8);
+	float framerate = 50;
 	bool loops = true;
 	bool useTexture = false;
 	vector<string> videoNames = {
-		"jpeg",
-		"compressed_tga",
-		"tga",
-		"jpeg",
+		"jpegLong",
+		"jpegLong"
+//		"jpeg",
+//		"compressed_tga",
+//		"tga",
+//		"jpeg",
 //		"compressed_tga",
 //		"tga",
 		//"PNG_imgSequence",
@@ -152,6 +154,11 @@ void ofApp::keyPressed(int key){
 		int pos = floor(ofRandom(videos[i]->video.getNumFrames()));
 		videos[i]->video.seekToFrame(pos);
 	}
+
+	if(key == '6'){
+		videos[i]->video.seekToFrame(0);
+	}
+
 
 	if(key == '0'){
 		videos[i]->video.eraseAllPixelCache();

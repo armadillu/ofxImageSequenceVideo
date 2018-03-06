@@ -245,7 +245,12 @@ void ofxImageSequenceVideo::eraseAllPixelCache(){
 
 void ofxImageSequenceVideo::eraseOutOfBufferPixelCache(){
 
-	for(int i = 0; i < currentFrame; i++){
+	int start = 0;
+	if(currentFrame + numBufferFrames > numFrames){
+		start = numBufferFrames - (numFrames - currentFrame);
+	}
+
+	for(int i = start; i < currentFrame; i++){
 		if(CURRENT_FRAME_ALT[i].state == THREAD_FINISHED_LOADING || CURRENT_FRAME_ALT[i].state == LOADED){
 			CURRENT_FRAME_ALT[i].pixels.clear();
 			CURRENT_FRAME_ALT[i].state = NOT_LOADED;
@@ -270,9 +275,13 @@ void ofxImageSequenceVideo::drawDebug(float x, float y, float w){
 	float pad = step - sw;
 	float h = sw;
 
-	if(numThreads > 0){
+	if(numThreads > 0){  //draw buffer zone
 		ofSetColor(255,128);
-		ofDrawRectangle(step * currentFrame, -h, step * numBufferFrames, h * 3 );
+		int numAhead = numBufferFrames;
+		//see if buffer hits the end of the clip - we need to wrap then
+		if(currentFrame + numBufferFrames > numFrames) numAhead = numFrames - currentFrame;
+		ofDrawRectangle(step * currentFrame, -h, step * numAhead, h * 3 );
+		if(numAhead != numBufferFrames) ofDrawRectangle(0, -h, step * (numBufferFrames - numAhead), h * 3 );
 		ofSetColor(0);
 		ofDrawRectangle(0, - h * 0.25, w, h * 1.5);
 		ofSetColor(255);
@@ -290,7 +299,7 @@ void ofxImageSequenceVideo::drawDebug(float x, float y, float w){
 
 	string msg = numThreads == 0 ? "Mode: Immediate" : "Mode: Async";
 	msg += "\nFrame: " + ofToString(currentFrame) + "/" + ofToString(numFrames);
-	if(numThreads > 0) msg += "\nNum Tasks: " + ofToString(tasks.size()) + "/" + ofToString(numThreads);
+	if(numThreads > 0) msg += "\nNumTasks: " + ofToString(tasks.size()) + "/" + ofToString(numThreads);
 
 	ofSetColor(255,0,0);
 	float triangleH = MAX(h, 10);
