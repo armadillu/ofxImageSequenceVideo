@@ -18,17 +18,21 @@ void ofApp::setup(){
 	RUI_NEW_GROUP("PARAMS");
 	RUI_SHARE_PARAM(drawDebug);
 
-	int numThreads = 2;
-	int buffer = 30; //MAX(1.5 * numThreads, 8);
-	float framerate = 50;
+	int numThreads = 4;
+	int buffer = 20; //MAX(1.5 * numThreads, 8);
+	float framerate = 60;
 	bool loops = true;
-	bool useTexture = false;
+	bool useTexture = true;
 	vector<string> videoNames = {
 		"jpegLong",
-		"jpegLong"
+		"jpegLong",
 //		"jpeg",
 //		"compressed_tga",
 //		"tga",
+//		"jpeg",
+//		"jpeg",
+//		"jpeg",
+//		"jpeg",
 //		"jpeg",
 //		"compressed_tga",
 //		"tga",
@@ -44,7 +48,9 @@ void ofApp::setup(){
 		v->name = n;
 		v->video.setup(buffer, (c==0) ? 0 : numThreads);
 		//v->video.setup(buffer, numThreads);
+		TS_START("load " + v->name);
 		v->video.loadImageSequence(v->name, framerate);
+		TS_STOP("load " + v->name);
 		v->video.play();
 		v->video.setLoop(loops);
 		v->video.setUseTexture(useTexture);
@@ -52,7 +58,7 @@ void ofApp::setup(){
 		c++;
 	}
 
-	startThread(); //start of thread to test video object on thread environment
+	//startThread(); //start of thread to test video object on thread environment
 }
 
 
@@ -86,22 +92,22 @@ void ofApp::draw(){
 		int j = floor(c / columns);
 		float x = i * gridW + pad * 0.5;
 		float y = j * gridH + pad * 0.5;
-		TS_START(v->name);
+		TS_START("d " + v->name);
 		if(v->video.getTexture().isAllocated()){
 			v->video.getTexture().draw(x,y, gridW - pad, gridH - pad);
 		}else{
-			ofTexture t;
-			ofPixels & pix = v->video.getPixels();
-			if(pix.isAllocated()){
-				t.loadData(pix);
-				t.draw(x,y, gridW - pad, gridH - pad);
-			}else{
-				ofLogWarning() << "pixels not allocated for \"" << v->name << "\"";
-			}
+//			ofTexture t;
+//			ofPixels & pix = v->video.getPixels();
+//			if(pix.isAllocated()){
+//				t.loadData(pix);
+//				t.draw(x,y, gridW - pad, gridH - pad);
+//			}else{
+//				ofLogWarning() << "pixels not allocated for \"" << v->name << "\"";
+//			}
 		}
 		float margin = 10;
 		if(drawDebug) v->video.drawDebug(x + margin, y + margin, gridW - pad - 2 * margin);
-		TS_STOP(v->name);
+		TS_STOP("d " + v->name);
 		ofDrawBitmapStringHighlight( v->name, x, y  + gridH - 1 * pad);
 		if(c == selectedVideo){
 			ofNoFill();

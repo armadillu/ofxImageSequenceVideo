@@ -9,6 +9,12 @@
 #include "ofxImageSequenceVideo.h"
 #include "ofxTimeMeasurements.h"
 
+#if defined( TARGET_OSX ) || defined( TARGET_LINUX )
+	#include <getopt.h>
+	#include <dirent.h>
+#endif
+
+
 #define CURRENT_FRAME_ALT frames[currentFrameSet]
 
 ofxImageSequenceVideo::ofxImageSequenceVideo(){}
@@ -32,22 +38,45 @@ void ofxImageSequenceVideo::setup(int bufferSize, int numThreads){
 }
 
 
+
+const char *get_filename_extension(const char *filename) {
+	const char *dot = strrchr(filename, '.');
+	if(!dot || dot == filename) return "";
+	return dot + 1;
+}
+
+
 void ofxImageSequenceVideo::loadImageSequence(const string & path, float frameRate){
 
-	bool ok = false;
-	ofDirectory dir;
-	dir.allowExt("tga");
-	dir.allowExt("jpeg");
-	dir.allowExt("jpg");
-	dir.allowExt("jp2");
-	dir.allowExt("bmp");
-	dir.allowExt("png");
-	dir.allowExt("tiff");
-	dir.allowExt("tif");
-	dir.allowExt("ppm");
-	dir.sort();
-	int num = dir.listDir(path);
+	DIR *dir2;
+	struct dirent *ent;
 
+	vector<string> fileNames;
+	string fullPath = ofToDataPath(path,true);
+
+	if ((dir2 = opendir(fullPath.c_str()) ) != NULL) {
+
+		while ((ent = readdir (dir2)) != NULL) {
+			const char * ext = get_filename_extension(ent->d_name);
+			if ( strcmp( ext, "tga") == 0 ||
+				strcmp( ext, "jpeg") == 0 ||
+				strcmp( ext, "jpg") == 0 ||
+				strcmp( ext, "jp2") == 0 ||
+				strcmp( ext, "bmp") == 0 ||
+				strcmp( ext, "png") == 0 ||
+				strcmp( ext, "tif") == 0 ||
+				strcmp( ext, "tiff") == 0
+				){
+				fileNames.push_back(string(ent->d_name));
+			}
+		}
+		closedir(dir2);
+	}
+
+	std::sort(fileNames.begin(), fileNames.end());
+	ofLogNotice("ofxImageSequenceVideo") << "loadImageSequence: \"" << path << "\"";
+
+	int num = fileNames.size();
 	if(num >= 2){
 		loaded = true;
 		imgSequencePath = path;
@@ -60,12 +89,14 @@ void ofxImageSequenceVideo::loadImageSequence(const string & path, float frameRa
 
 		//move to the next data struct
 		currentFrameSet++;
-		if(currentFrameSet >= maxFramePingPingDataStructs ) currentFrameSet = 0;
+		if(currentFrameSet >= maxFramePingPongDataStructs ) currentFrameSet = 0;
 
 		CURRENT_FRAME_ALT.clear();
 		CURRENT_FRAME_ALT.resize(num);
 		for(int i = 0; i < num; i++){
-			CURRENT_FRAME_ALT[i].filePath = dir.getPath(i);
+			//CURRENT_FRAME_ALT[i].filePath = dir.getPath(i);
+			CURRENT_FRAME_ALT[i].filePath = path + "/" + fileNames[i];
+			//ofLogNotice("ofxImageSequenceVideo") << CURRENT_FRAME_ALT[i].filePath;
 		}
 		if(numThreads > 0){
 			handleThreadSpawn();

@@ -18,7 +18,7 @@ class ofxImageSequenceVideo{
 
 public:
 
-	static const int maxFramePingPingDataStructs = 10;
+	static const int maxFramePingPongDataStructs = 10;
 
 	ofxImageSequenceVideo();
 	~ofxImageSequenceVideo();
@@ -105,7 +105,7 @@ protected:
 	bool playback = false;
 	bool shouldLoop = true;
 
-	vector<FrameInfo> frames[maxFramePingPingDataStructs];
+	vector<FrameInfo> frames[maxFramePingPongDataStructs];
 	int currentFrameSet = -1;
 	//this weird thing is to do frames structures ping-poing so that when we load a new
 	//video, we can safely move to a new struct and leave the running threads do its thing on the
