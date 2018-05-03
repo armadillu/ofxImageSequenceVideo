@@ -35,6 +35,7 @@ public:
 	void loadImageSequence(const string & path, float frameRate);
 
 	void update(float dt);
+	void setPlaybackFramerate(float framerate);
 
 	void play();
 	void pause();
@@ -49,7 +50,7 @@ public:
 	int getNumFrames();
 	float getPosition();
 
-	bool arePixelsNew();
+	bool arePixelsNew(); //since last update
 
 	void eraseAllPixelCache();
 

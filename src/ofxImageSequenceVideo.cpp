@@ -177,6 +177,10 @@ void ofxImageSequenceVideo::update(float dt){
 }
 
 
+void ofxImageSequenceVideo::setPlaybackFramerate(float framerate){
+	frameDuration = 1.0f / framerate;
+}
+
 void ofxImageSequenceVideo::handleLooping(bool triggerEvents){
 
 	if(shouldLoop){ //loop movie
@@ -441,6 +445,7 @@ int ofxImageSequenceVideo::getNumFrames(){
 
 bool ofxImageSequenceVideo::arePixelsNew(){
 	if(!loaded) return false;
+	else return newData;
 }
 
 
