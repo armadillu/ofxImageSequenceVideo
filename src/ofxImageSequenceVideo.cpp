@@ -39,7 +39,7 @@ void ofxImageSequenceVideo::setup(int bufferSize, int numThreads){
 
 
 
-const char *get_filename_extension(const char *filename) {
+static const char *get_filename_extension(const char *filename) {
 	const char *dot = strrchr(filename, '.');
 	if(!dot || dot == filename) return "";
 	return dot + 1;
