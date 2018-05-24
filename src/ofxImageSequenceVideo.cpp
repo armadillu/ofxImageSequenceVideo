@@ -390,7 +390,7 @@ void ofxImageSequenceVideo::pause(){
 }
 
 void ofxImageSequenceVideo::loadPixelsNow(int newFrame, int oldFrame){
-	if(currentFrame != oldFrame){
+	if(currentFrame != oldFrame || !tex.isAllocated()){
 		uint64_t t = ofGetElapsedTimeMicros();
 
 		CURRENT_FRAME_ALT[oldFrame].state = NOT_LOADED;
