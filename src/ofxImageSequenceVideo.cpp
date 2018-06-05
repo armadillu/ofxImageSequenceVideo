@@ -456,7 +456,7 @@ void ofxImageSequenceVideo::setLoop(bool loop){
 void ofxImageSequenceVideo::seekToFrame(int frame){
 	if(!loaded) return;
 	int oldFrame = ofClamp(currentFrame, 0, numFrames-1);
-	currentFrame = frame;
+	currentFrame = ofClamp(frame, 0, numFrames-1);
 	frameOnScreenTime = 0;
 	if(numThreads > 0){
 		eraseOutOfBufferPixelCache();
