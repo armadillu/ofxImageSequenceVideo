@@ -19,15 +19,15 @@ void ofApp::setup(){
 	RUI_SHARE_PARAM(drawDebug);
 
 	int numThreads = 4;
-	int buffer = 20; //MAX(1.5 * numThreads, 8);
+	int buffer = 60; //MAX(1.5 * numThreads, 8);
 	float framerate = 60;
 	bool loops = true;
 	bool useTexture = true;
 	vector<string> videoNames = {
+		"compressed_tga",
 		"jpegLong",
-		"jpegLong",
-//		"jpeg",
-//		"compressed_tga",
+		"Sony_Demo_Bravia_2013",
+		"tga",
 //		"tga",
 //		"jpeg",
 //		"jpeg",
@@ -46,8 +46,8 @@ void ofApp::setup(){
 	for(const auto & n : videoNames){
 		VideoUnit * v = new VideoUnit();
 		v->name = n;
-		v->video.setup(buffer, (c==0) ? 0 : numThreads);
-		//v->video.setup(buffer, numThreads);
+		//v->video.setup(buffer, (c==0) ? 0 : numThreads);
+		v->video.setup(buffer, numThreads);
 		TS_START("load " + v->name);
 		v->video.loadImageSequence(v->name, framerate);
 		TS_STOP("load " + v->name);
@@ -77,6 +77,8 @@ void ofApp::update(){
 
 
 void ofApp::draw(){
+
+	TSGL_START("videos draw");
 
 	int n = videos.size();
 	int columns = (int)sqrt(n);
@@ -122,6 +124,8 @@ void ofApp::draw(){
 		c++;
 	}
 
+	TSGL_STOP("videos draw");
+
 	mutex.lock();
 	if(threadPixels.isAllocated()){
 		ofTexture t;
@@ -129,6 +133,7 @@ void ofApp::draw(){
 		t.draw(ofGetWidth() - 200, 100, 100, 65);
 	}
 	mutex.unlock();
+
 }
 
 
@@ -136,6 +141,11 @@ void ofApp::keyPressed(int key){
 
 	if(key == 'w'){
 		screenSetup.cycleToNextScreenMode();
+	}
+
+	if(key == 'd'){
+		drawDebug ^= true;
+		RUI_PUSH_TO_CLIENT();
 	}
 
 	int i = selectedVideo;

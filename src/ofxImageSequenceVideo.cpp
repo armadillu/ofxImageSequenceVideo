@@ -343,6 +343,7 @@ void ofxImageSequenceVideo::drawDebug(float x, float y, float w){
 
 	if(numThreads > 0) msg += "\nBuffer: " + ofToString(100 * bufferFullness, 1) + "%";
 	msg += "\nLoadTimeAvg: " + ofToString(loadTimeAvg, 2) + "ms";
+	msg += "\nRes: " + ofToString(tex.getWidth(),0) + " x " + ofToString(tex.getHeight(),0);
 	ofDrawBitmapStringHighlight(msg, 0, 16 + h * 1.25);
 	ofPopMatrix();
 
