@@ -391,10 +391,17 @@ void ofxImageSequenceVideo::pause(){
 }
 
 void ofxImageSequenceVideo::loadPixelsNow(int newFrame, int oldFrame){
+
+	if(newFrame < 0 || newFrame >= numFrames){
+		ofLogError("ofxImageSequenceVideo") << "cant load frame! out of bounds!";
+		return;
+	}
 	if(currentFrame != oldFrame || (!tex.isAllocated() && shouldLoadTexture)){
 		uint64_t t = ofGetElapsedTimeMicros();
 
-		CURRENT_FRAME_ALT[oldFrame].state = NOT_LOADED;
+		if(oldFrame >= 0){
+			CURRENT_FRAME_ALT[oldFrame].state = NOT_LOADED;
+		}
 		TS_START("immediate load pix");
 		#if defined(USE_TURBO_JPEG)
 		string extension = ofToLower(ofFilePath::getFileExt(CURRENT_FRAME_ALT[newFrame].filePath));
