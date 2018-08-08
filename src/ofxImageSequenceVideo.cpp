@@ -457,6 +457,7 @@ void ofxImageSequenceVideo::setLoop(bool loop){
 void ofxImageSequenceVideo::seekToFrame(int frame){
 	if(!loaded) return;
 	int oldFrame = ofClamp(currentFrame, 0, numFrames-1);
+	if(frameOnScreenTime < 0.0) oldFrame = -1; //we just loaded a new sequence, we have no valid frame data!
 	currentFrame = ofClamp(frame, 0, numFrames-1);
 	frameOnScreenTime = 0;
 	if(numThreads > 0){
