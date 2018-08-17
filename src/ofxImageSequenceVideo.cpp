@@ -169,9 +169,9 @@ void ofxImageSequenceVideo::update(float dt){
 
 		if(texNeedsLoad && shouldLoadTexture){
 			texNeedsLoad = false;
-			TS_START_ACC("immediate load pix GPU");
+			TS_START_ACC("load pix GPU");
 			tex.loadData(currentPixels);
-			TS_STOP_ACC("immediate load pix GPU");
+			TS_STOP_ACC("load pix GPU");
 		}
 	}
 }
@@ -402,19 +402,23 @@ void ofxImageSequenceVideo::loadPixelsNow(int newFrame, int oldFrame){
 		if(oldFrame >= 0){
 			CURRENT_FRAME_ALT[oldFrame].state = NOT_LOADED;
 		}
-		TS_START_ACC("immediate load pix");
 		#if defined(USE_TURBO_JPEG)
 		string extension = ofToLower(ofFilePath::getFileExt(CURRENT_FRAME_ALT[newFrame].filePath));
 		if(extension == "jpeg" || extension == "jpg"){
+			TS_START_ACC("load jpg disk");
 			ofxTurboJpeg jpeg;
 			jpeg.load(currentPixels, CURRENT_FRAME_ALT[newFrame].filePath);
+			TS_STOP_ACC("load jpg disk");
 		}else{
+			TS_START_ACC("load pix disk");
 			ofLoadImage(currentPixels, CURRENT_FRAME_ALT[newFrame].filePath);
+			TS_STOP_ACC("load pix disk");
 		}
 		#else
+		TS_START_ACC("load pix disk");
 		ofLoadImage(currentPixels, CURRENT_FRAME_ALT[newFrame].filePath); //load pixels from disk
+		TS_STOP_ACC("load pix disk");
 		#endif
-		TS_STOP_ACC("immediate load pix");
 		CURRENT_FRAME_ALT[newFrame].state = LOADED;
 		loadTimeAvg = ofLerp(loadTimeAvg, (ofGetElapsedTimeMicros() - t) / 1000.0f, 0.1);
 		texNeedsLoad = true;
