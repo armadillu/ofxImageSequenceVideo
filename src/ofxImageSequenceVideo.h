@@ -28,19 +28,37 @@ public:
 	//if you specify  numThreads >= 1, threads are spawned to pre-load frames up to the buffer size
 	//you request, so that main thread only loads tex data to GPU (preferred for realtime).
 	//note that bufferSize is irrelevant in immediate mode.
-	
-	void setup(int numThreads, int bufferSize, bool keepTexturesInGpuMem);
-	void setUseTexture(bool useTex){shouldLoadTexture = useTex;};
 
+	//keepTexturesInGpuMem==true will playback as usual, but will also keep the ofTexture of each frame around
+	//during the first playback pass, all frames will be loaded from disk, but on the following
+	//passes, no more loading will happen as the ofTextures already will be in the GPU.
+	//This of course uses tons of GPU memory, so use wisely. See getEstimatdVramUse(); to get an estimate
+	//of how much memory your sequence will use.
+	void setup(int numThreads, int bufferSize, bool keepTexturesInGpuMem);
+	//NOTE - dont change those on the fly, to be setup once before you load the IMG sequence
+
+	//TODO - don't reuse objects, it will probably fail to load a second img sequence so only load once
+	//otherwise things might go wrong
 	void loadImageSequence(const string & path, float frameRate);
 
-	void update(float dt);
+	//if TRUE, it effectivelly loads the whole img sequence into GPU (during the 1st playback)
+	//this uses tons of VRAM depending on your sequence size & length, but once its all loaded, no more work is done
+	void setKeepTexturesInGpuMem(bool keep){keepTexturesInGpuMem = keep; }
+
+	//set to FALSE for it to avoid GL calls - only ofPixels will be loaded (handy to use it from a thread)
+	void setUseTexture(bool useTex){shouldLoadTexture = useTex;};
+
+	//set the img sequence framerate (playback speed)
 	void setPlaybackFramerate(float framerate);
 
-	size_t getEstimatdVramUse(); //returns estimated number of bytes it would take to load
-								//the whole img sequence in VRAM
-								//this is a rather expensive operation if no frame is loaded
-								//as we need to load a frame from disk to find out
+
+	void update(float dt);
+
+
+	//returns estimated number of bytes it would take to load the whole img sequence in VRAM
+	//this is a rather expensive operation if no frame is loaded already, as we need to load
+	//a frame from disk to find out
+	size_t getEstimatdVramUse();
 
 	void play();
 	void pause();
@@ -48,20 +66,27 @@ public:
 	void advanceOneFrame();
 	void seekToFrame(int frame);
 
-	void setPosition(float normalizedPos);
-	void setLoop(bool loop);
+	void setPosition(float normalizedPos); //[0..1]
+	void setLoop(bool loop); //does the sequence loop when it reaches the end during playback?
 
 	int getCurrentFrame();
 	int getNumFrames();
-	float getPosition();
+	float getPosition(); //as percentage[0..1]
 
 	bool arePixelsNew(); //since last update
 
-	void eraseAllPixelCache();
-	void eraseAllTextureCache();
+	void eraseAllPixelCache(); //delete all pixel cache
+	void eraseAllTextureCache(); //delete all ofTexture cache
 
 	ofPixels& getPixels();
 	ofTexture& getTexture();
+
+	//draws a timeline with all frames and their status, the playhead and the buffer size
+	void drawDebug(float x, float y, float w);
+
+	//get img sequence stats as a string
+	std::string getStatus();
+
 
 	struct EventInfo{
 		ofVec2f movieTexSize;
@@ -71,9 +96,6 @@ public:
 
 	ofFastEvent<EventInfo> eventMovieLooped;
 	ofFastEvent<EventInfo> eventMovieEnded;
-
-	void drawDebug(float x, float y, float w);
-	std::string getStatus();
 
 protected:
 

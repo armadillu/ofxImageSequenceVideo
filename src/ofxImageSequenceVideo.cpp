@@ -18,6 +18,28 @@
 
 #define CURRENT_FRAME_ALT frames[currentFrameSet]
 
+#define STB_IMAGE_IMPLEMENTATION
+#include "../lib/stb/stb_image.h"
+
+
+void getImageInfo(const std::string & filePath, int & width, int & height, int & numChannels, bool & imgOK){
+	std::string path = ofToDataPath(filePath, true);
+	int ret = stbi_info(path.c_str(), &width, &height, &numChannels);
+	imgOK = (ret != 0);
+	if(!imgOK){
+		ofLogError("ofxApp::utils") << "getImageDimensions() failed for image \"" << filePath << "\"";
+		ofPixels pix;
+		bool loadOK = ofLoadImage(pix, filePath);
+		if(loadOK){
+			width = pix.getWidth();
+			height = pix.getHeight();
+			imgOK = true;
+			numChannels = pix.getNumPlanes();
+		}
+	}
+}
+
+
 ofxImageSequenceVideo::ofxImageSequenceVideo(){}
 
 ofxImageSequenceVideo::~ofxImageSequenceVideo(){
@@ -26,7 +48,7 @@ ofxImageSequenceVideo::~ofxImageSequenceVideo(){
 	for(int i = tasks.size() - 1; i >= 0; i--){
 		std::future_status status = tasks[i].wait_for(std::chrono::microseconds(0));
 		while(status != std::future_status::ready){
-			ofSleepMillis(5);
+			ofSleepMillis(1);
 			status = tasks[i].wait_for(std::chrono::microseconds(0));
 		}
 	}
@@ -60,14 +82,18 @@ void ofxImageSequenceVideo::loadImageSequence(const string & path, float frameRa
 
 		while ((ent = readdir (dir2)) != NULL) {
 			const char * ext = get_filename_extension(ent->d_name);
-			if ( strcmp( ext, "tga") == 0 ||
-				strcmp( ext, "jpeg") == 0 ||
-				strcmp( ext, "jpg") == 0 ||
-				strcmp( ext, "jp2") == 0 ||
-				strcmp( ext, "bmp") == 0 ||
-				strcmp( ext, "png") == 0 ||
-				strcmp( ext, "tif") == 0 ||
-				strcmp( ext, "tiff") == 0
+			bool isVisible = ent->d_name[0] != '.';
+			if ( isVisible &&
+				(strcmp( ext, "tga") == 0 ||
+				 strcmp( ext, "gif") == 0 ||
+				 strcmp( ext, "jpeg") == 0 ||
+				 strcmp( ext, "jpg") == 0 ||
+				 strcmp( ext, "jp2") == 0 ||
+				 strcmp( ext, "bmp") == 0 ||
+				 strcmp( ext, "png") == 0 ||
+				 strcmp( ext, "tif") == 0 ||
+				 strcmp( ext, "tiff") == 0
+				 )
 				){
 				fileNames.push_back(string(ent->d_name));
 			}
@@ -110,10 +136,26 @@ void ofxImageSequenceVideo::loadImageSequence(const string & path, float frameRa
 
 size_t ofxImageSequenceVideo::getEstimatdVramUse(){
 
-	size_t mem;
 	if(frames[currentFrameSet].size()){
 
-		
+		if(CURRENT_FRAME_ALT[0].state == PixelState::LOADED){
+			auto & pix = CURRENT_FRAME_ALT[0].pixels;
+			return pix.getWidth() * pix.getHeight() * pix.getNumPlanes() * (size_t)numFrames;
+		}
+		if(CURRENT_FRAME_ALT[0].texState == TextureState::LOADED){
+			auto & tex = CURRENT_FRAME_ALT[0].texture;
+			size_t numChannels = ofGetNumChannelsFromGLFormat(tex.getTextureData().glInternalFormat);
+			return tex.getWidth() * tex.getHeight() * numChannels * (size_t)numFrames;
+		}
+		int w, h, nChannels;
+		bool ok;
+		getImageInfo(CURRENT_FRAME_ALT[0].filePath, w, h, nChannels, ok);
+		if(ok){
+			return (size_t)numFrames * (size_t)w * (size_t)h * (size_t)nChannels;
+		}else{
+			ofLogError("ofxImageSequenceVideo") << "Can't getEstimatdVramUse(). cant load image! " << CURRENT_FRAME_ALT[0].filePath;
+			return 0;
+		}
 	}else{
 		ofLogError("ofxImageSequenceVideo") << "Can't getEstimatdVramUse(). Load an image sequence first!";
 		return 0;
@@ -370,7 +412,9 @@ std::string ofxImageSequenceVideo::getStatus(){
 
 	if(numThreads > 0) msg += "\nBuffer: " + ofToString(100 * bufferFullness, 1) + "%";
 	msg += "\nLoadTimeAvg: " + ofToString(loadTimeAvg, 2) + "ms";
-	msg += "\nRes: " + ofToString(tex.getWidth(),0) + " x " + ofToString(tex.getHeight(),0);
+	auto & texture = getTexture();
+	msg += "\nRes: " + ofToString(texture.getWidth(),0) + " x " + ofToString(texture.getHeight(),0);
+	msg += "\nKeepInGPU: " + string(keepTexturesInGpuMem ? "YES" : "FALSE");
 
 	return msg;
 }
