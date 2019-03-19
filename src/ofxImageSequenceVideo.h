@@ -24,18 +24,23 @@ public:
 	~ofxImageSequenceVideo();
 
 	//There are basically 2 operation modes, ASYNC and INMEDIATE. if you specify numThreads = 0,
-	//everyrthing will be in immediate mode. All work will be done in the main thread, blocking on update().
+	//everything will be in immediate mode. All work will be done in the main thread, blocking on update().
 	//if you specify  numThreads >= 1, threads are spawned to pre-load frames up to the buffer size
 	//you request, so that main thread only loads tex data to GPU (preferred for realtime).
 	//note that bufferSize is irrelevant in immediate mode.
 	
-	void setup(int bufferSize, int numThreads = std::thread::hardware_concurrency());
+	void setup(int numThreads, int bufferSize, bool keepTexturesInGpuMem);
 	void setUseTexture(bool useTex){shouldLoadTexture = useTex;};
 
 	void loadImageSequence(const string & path, float frameRate);
 
 	void update(float dt);
 	void setPlaybackFramerate(float framerate);
+
+	size_t getEstimatdVramUse(); //returns estimated number of bytes it would take to load
+								//the whole img sequence in VRAM
+								//this is a rather expensive operation if no frame is loaded
+								//as we need to load a frame from disk to find out
 
 	void play();
 	void pause();
@@ -53,6 +58,7 @@ public:
 	bool arePixelsNew(); //since last update
 
 	void eraseAllPixelCache();
+	void eraseAllTextureCache();
 
 	ofPixels& getPixels();
 	ofTexture& getTexture();
@@ -67,25 +73,36 @@ public:
 	ofFastEvent<EventInfo> eventMovieEnded;
 
 	void drawDebug(float x, float y, float w);
+	std::string getStatus();
 
 protected:
 
-	enum PixelState{
+	enum class PixelState{
 		NOT_LOADED,
 		LOADING,
 		THREAD_FINISHED_LOADING,
 		LOADED
 	};
 
+	enum class TextureState{
+		NOT_LOADED,
+		LOADED
+	};
+
 	struct FrameInfo{
 		string filePath;
 		ofPixels pixels;
-		PixelState state = NOT_LOADED;
+		PixelState state = PixelState::NOT_LOADED;
 		float loadTime = 0; //ms
+
+		TextureState texState = TextureState::NOT_LOADED;
+		ofTexture texture; 	//only to be kept around when we are trying to
+							//cache the whole anim (bufferSize == numFrames)
 	};
 
 	bool loaded = false;
 	string imgSequencePath;
+	bool keepTexturesInGpuMem = false;
 
 	void advanceFrameInternal();
 	

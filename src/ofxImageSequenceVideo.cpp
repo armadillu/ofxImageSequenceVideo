@@ -8,6 +8,7 @@
 
 #include "ofxImageSequenceVideo.h"
 #include "ofxTimeMeasurements.h"
+#include "../lib/stb/stb_image.h"
 
 #if defined( TARGET_OSX ) || defined( TARGET_LINUX )
 	#include <getopt.h>
@@ -32,9 +33,10 @@ ofxImageSequenceVideo::~ofxImageSequenceVideo(){
 }
 
 
-void ofxImageSequenceVideo::setup(int bufferSize, int numThreads){
+void ofxImageSequenceVideo::setup(int numThreads, int bufferSize, bool keepTexturesInGpuMem){
 	this->numBufferFrames = bufferSize;
 	this->numThreads = numThreads;
+	this->keepTexturesInGpuMem = keepTexturesInGpuMem;
 }
 
 
@@ -106,6 +108,17 @@ void ofxImageSequenceVideo::loadImageSequence(const string & path, float frameRa
 	}
 }
 
+size_t ofxImageSequenceVideo::getEstimatdVramUse(){
+
+	size_t mem;
+	if(frames[currentFrameSet].size()){
+
+		
+	}else{
+		ofLogError("ofxImageSequenceVideo") << "Can't getEstimatdVramUse(). Load an image sequence first!";
+		return 0;
+	}
+}
 
 void ofxImageSequenceVideo::update(float dt){
 
@@ -120,23 +133,41 @@ void ofxImageSequenceVideo::update(float dt){
 
 	if(numThreads > 0){ //async mode - spawn threads to load frames in the future and wait for them to be done / sync
 
-		bool pixelsAreReady = CURRENT_FRAME_ALT[currentFrame].state == THREAD_FINISHED_LOADING;
+		FrameInfo & curFrame = CURRENT_FRAME_ALT[currentFrame];
+
+		bool pixelsAreReady = curFrame.state == PixelState::THREAD_FINISHED_LOADING;
 
 		if(pixelsAreReady){ //1st update() call in which the pixels are available - load to GPU and change state to LOADED
+
 			if(shouldLoadTexture){
-				tex.loadData(CURRENT_FRAME_ALT[currentFrame].pixels);
+
+				if(curFrame.texState == TextureState::NOT_LOADED){
+
+					//tex.setCompression(OF_COMPRESS_SRGB); //compress texture on GPU? TODO!
+
+					TS_SCOPE("load 2 GPU");
+
+					if(keepTexturesInGpuMem){ //load into frames vector
+						curFrame.texture.loadData(curFrame.pixels);
+						curFrame.texState = TextureState::LOADED;
+					}else{ //load into reusable texture
+						tex.loadData(curFrame.pixels);
+					}
+				}
 			}
-			CURRENT_FRAME_ALT[currentFrame].state = LOADED;
+			curFrame.state = PixelState::LOADED;
 			newData = true;
 		}
 
 		PixelState state = CURRENT_FRAME_ALT[currentFrame].state;
 
-		//note we hold playback until pixels are ready (instead of dropping frames)
-		if(playback && (state == THREAD_FINISHED_LOADING|| state == LOADED) &&
-		   (frameOnScreenTime >= frameDuration || frameOnScreenTime < 0.0f) &&
-		   (shouldLoop || (!shouldLoop && (currentFrame <= (numFrames - 1))))
-		   ){
+		bool timeToAdvanceFrame = (frameOnScreenTime >= frameDuration || frameOnScreenTime < 0.0f);
+		bool pixelsReady = (state == PixelState::THREAD_FINISHED_LOADING|| state == PixelState::LOADED);
+		bool loop = (shouldLoop || (!shouldLoop && (currentFrame <= (numFrames - 1))));
+		bool isTextureReady = CURRENT_FRAME_ALT[currentFrame].texState == TextureState::LOADED;
+
+		//note we hold playback until pixels are ready (instead of dropping frames - otherwise things get very complicated)
+		if(playback && timeToAdvanceFrame && loop && (pixelsReady || isTextureReady)){
 			handleScreenTimeCounters(dt);
 			advanceFrameInternal();
 		}
@@ -145,10 +176,11 @@ void ofxImageSequenceVideo::update(float dt){
 		handleThreadCleanup();
 		handleThreadSpawn();
 
+		//update buffer statistics
 		int numLoaded = 0;
 		for(int i = 0; i < numBufferFrames; i++){
 			auto state = CURRENT_FRAME_ALT[(currentFrame + i)%numFrames].state;
-			if(state == THREAD_FINISHED_LOADING || state == LOADED) numLoaded++;
+			if(state == PixelState::THREAD_FINISHED_LOADING || state == PixelState::LOADED) numLoaded++;
 		}
 		bufferFullness = ofLerp(bufferFullness,(numLoaded / float(numBufferFrames)), 0.1);
 
@@ -170,6 +202,7 @@ void ofxImageSequenceVideo::update(float dt){
 		if(texNeedsLoad && shouldLoadTexture){
 			texNeedsLoad = false;
 			TS_START_ACC("load pix GPU");
+			//tex.setCompression(OF_COMPRESS_SRGB); //compress texture on GPU?
 			tex.loadData(currentPixels);
 			TS_STOP_ACC("load pix GPU");
 		}
@@ -227,39 +260,51 @@ void ofxImageSequenceVideo::handleThreadSpawn(){
 	int frameToLoad = currentFrame;
 	int furthestFrame = currentFrame + numBufferFrames;
 
-	if(bufferFullness > 0.75){ //dont overspawn if we have enought data already
+	if(bufferFullness > 0.75 && numBufferFrames < CURRENT_FRAME_ALT.size()){ //dont overspawn if we have enough data already - unless we are trying to load the whole sequence
 		numToSpawn = ofClamp(numToSpawn, 0, 1);
 	}
 
+	bool fullyLoaded = false;
 	for(int i = 0; i < numToSpawn; i++ ){
 		//look for a frame that needs loading
-		while(CURRENT_FRAME_ALT[frameToLoad%numFrames].state != NOT_LOADED ){
+		int numChecked = 0;
+		while(CURRENT_FRAME_ALT[frameToLoad%numFrames].state != PixelState::NOT_LOADED ){
 			frameToLoad++;
+			numChecked++;
+			if(numChecked >= numFrames){
+				fullyLoaded = true;
+				break;
+			}
 		}
-		if( frameToLoad < furthestFrame ){ //if the frame is within the buffer zone, spawn a thread to load it
+		if( !fullyLoaded && frameToLoad < furthestFrame ){ //if the frame is within the buffer zone, spawn a thread to load it
 			int moduloFrameToLoad = frameToLoad%numFrames;
 			//ofLogNotice("ofxImageSequenceVideo") << ofGetFrameNum() << " - spawn thread to load frame " << moduloFrameToLoad;
-			CURRENT_FRAME_ALT[moduloFrameToLoad].state = LOADING;
-			tasks.push_back( std::async(std::launch::async, &ofxImageSequenceVideo::loadFrameThread, this, moduloFrameToLoad) );
+			//if keeping textures in mem, dont spawn thread to load pixels if textures are already there
+			if( !keepTexturesInGpuMem || (keepTexturesInGpuMem && CURRENT_FRAME_ALT[moduloFrameToLoad].texState != TextureState::LOADED)){
+				CURRENT_FRAME_ALT[moduloFrameToLoad].state = PixelState::LOADING;
+				tasks.push_back( std::async(std::launch::async, &ofxImageSequenceVideo::loadFrameThread, this, moduloFrameToLoad) );
+			}
 		}
 	}
 }
 
 
 ofxImageSequenceVideo::LoadResults ofxImageSequenceVideo::loadFrameThread(int frame){
+
 	uint64_t t = ofGetElapsedTimeMicros();
+	FrameInfo & curFrame = CURRENT_FRAME_ALT[frame];
 	#if defined(USE_TURBO_JPEG)
-	string extension = ofToLower(ofFilePath::getFileExt(CURRENT_FRAME_ALT[frame].filePath));
+	string extension = ofToLower(ofFilePath::getFileExt(curFrame.filePath));
 	if(extension == "jpeg" || extension == "jpg"){
 		ofxTurboJpeg jpeg;
-		jpeg.load(CURRENT_FRAME_ALT[frame].pixels, CURRENT_FRAME_ALT[frame].filePath);
+		jpeg.load(curFrame.pixels, curFrame.filePath);
 	}else{
-		ofLoadImage(CURRENT_FRAME_ALT[frame].pixels, CURRENT_FRAME_ALT[frame].filePath);
+		ofLoadImage(curFrame.pixels, curFrame.filePath);
 	}
 	#else
-		ofLoadImage(CURRENT_FRAME_ALT[frame].pixels, CURRENT_FRAME_ALT[frame].filePath);
+		ofLoadImage(curFrame.pixels, curFrame.filePath);
 	#endif
-	CURRENT_FRAME_ALT[frame].state = THREAD_FINISHED_LOADING;
+	curFrame.state = PixelState::THREAD_FINISHED_LOADING;
 	t = ofGetElapsedTimeMicros() - t;
 	LoadResults results;
 	results.elapsedTime = t / 1000.0f;
@@ -271,9 +316,21 @@ ofxImageSequenceVideo::LoadResults ofxImageSequenceVideo::loadFrameThread(int fr
 void ofxImageSequenceVideo::eraseAllPixelCache(){
 
 	for(int i = 0; i < numFrames; i++){
-		if(CURRENT_FRAME_ALT[i].state == THREAD_FINISHED_LOADING || CURRENT_FRAME_ALT[i].state == LOADED){
-			CURRENT_FRAME_ALT[i].pixels.clear();
-			CURRENT_FRAME_ALT[i].state = NOT_LOADED;
+		FrameInfo & curFrame = CURRENT_FRAME_ALT[i];
+		if(curFrame.state == PixelState::THREAD_FINISHED_LOADING || curFrame.state == PixelState::LOADED){
+			curFrame.pixels.clear();
+			curFrame.state = PixelState::NOT_LOADED;
+		}
+	}
+}
+
+void ofxImageSequenceVideo::eraseAllTextureCache(){
+
+	for(int i = 0; i < numFrames; i++){
+		FrameInfo & curFrame = CURRENT_FRAME_ALT[i];
+		if(curFrame.texState == TextureState::LOADED ){
+			curFrame.texture.clear();
+			curFrame.texState = TextureState::NOT_LOADED;
 		}
 	}
 }
@@ -286,29 +343,54 @@ void ofxImageSequenceVideo::eraseOutOfBufferPixelCache(){
 	}
 
 	for(int i = start; i < currentFrame; i++){
-		if(CURRENT_FRAME_ALT[i].state == THREAD_FINISHED_LOADING || CURRENT_FRAME_ALT[i].state == LOADED){
-			CURRENT_FRAME_ALT[i].pixels.clear();
-			CURRENT_FRAME_ALT[i].state = NOT_LOADED;
+		FrameInfo & curFrame = CURRENT_FRAME_ALT[i];
+		if(curFrame.state == PixelState::THREAD_FINISHED_LOADING || curFrame.state == PixelState::LOADED){
+			curFrame.pixels.clear();
+			curFrame.state = PixelState::NOT_LOADED;
 		}
 	}
 
 	for(int i = currentFrame + numBufferFrames; i < numFrames; i++){
-		if(CURRENT_FRAME_ALT[i].state == THREAD_FINISHED_LOADING || CURRENT_FRAME_ALT[i].state == LOADED){
-			CURRENT_FRAME_ALT[i].pixels.clear();
-			CURRENT_FRAME_ALT[i].state = NOT_LOADED;
+		FrameInfo & curFrame = CURRENT_FRAME_ALT[i];
+		if(curFrame.state == PixelState::THREAD_FINISHED_LOADING || curFrame.state == PixelState::LOADED){
+			curFrame.pixels.clear();
+			curFrame.state = PixelState::NOT_LOADED;
 		}
 	}
+}
+
+
+std::string ofxImageSequenceVideo::getStatus(){
+
+	if(!loaded) return "";
+
+	string msg = numThreads == 0 ? "Mode: Immediate" : "Mode: Async";
+	msg += "\nFrame: " + ofToString(currentFrame) + "/" + ofToString(numFrames);
+	if(numThreads > 0) msg += "\nNumTasks: " + ofToString(tasks.size()) + "/" + ofToString(numThreads);
+
+	if(numThreads > 0) msg += "\nBuffer: " + ofToString(100 * bufferFullness, 1) + "%";
+	msg += "\nLoadTimeAvg: " + ofToString(loadTimeAvg, 2) + "ms";
+	msg += "\nRes: " + ofToString(tex.getWidth(),0) + " x " + ofToString(tex.getHeight(),0);
+
+	return msg;
 }
 
 void ofxImageSequenceVideo::drawDebug(float x, float y, float w){
 	if(!loaded) return;
 
+	ofMesh m;
+
+	m.setMode(OF_PRIMITIVE_POINTS);
+
 	ofPushMatrix();
 	ofTranslate(x, y);
+
 	float step = w / CURRENT_FRAME_ALT.size();
 	float sw = step * 0.7;
 	float pad = step - sw;
 	float h = sw;
+
+	glPointSize( MAX(sw * 1.25, 1.0) ); //TODO!
 
 	if(numThreads > 0){  //draw buffer zone
 		ofSetColor(255,128);
@@ -322,45 +404,53 @@ void ofxImageSequenceVideo::drawDebug(float x, float y, float w){
 		ofSetColor(255);
 	}
 
+	ofColor c;
 	for(int i = 0; i < numFrames; i++){
 		switch (CURRENT_FRAME_ALT[i].state) {
-			case NOT_LOADED: ofSetColor(99); break;
-			case LOADING: ofSetColor(255,255,0); break; //yellow
-			case THREAD_FINISHED_LOADING: ofSetColor(0,255,0); break; //green
-			case LOADED: ofSetColor(255,0,255); break; //magenta
+			case PixelState::NOT_LOADED: c = ofColor(99); break;
+			case PixelState::LOADING: c = ofColor(255,255,0); break; //yellow
+			case PixelState::THREAD_FINISHED_LOADING: c = ofColor(0,255,0); break; //green
+			case PixelState::LOADED: c = ofColor(255,0,255); break; //magenta
 		}
-		ofDrawRectangle(pad * 0.5f + i * step, 0, sw, h);
+		//ofDrawRectangle(pad * 0.5f + i * step, 0, sw, h);
+		m.addColor(c);
+		float x = pad * 0.5f + i * step + sw * 0.5f;
+		m.addVertex( glm::vec3(x, 0, 0) );
+
+		switch (CURRENT_FRAME_ALT[i].texState) {
+			case TextureState::NOT_LOADED: c = ofColor(255, 100, 100); break;
+			case TextureState::LOADED: c = ofColor(30,190,200); break; //magenta
+		}
+		m.addColor(c);
+		m.addVertex( glm::vec3(x, sw + 2, 0) );
 	}
 
-	string msg = numThreads == 0 ? "Mode: Immediate" : "Mode: Async";
-	msg += "\nFrame: " + ofToString(currentFrame) + "/" + ofToString(numFrames);
-	if(numThreads > 0) msg += "\nNumTasks: " + ofToString(tasks.size()) + "/" + ofToString(numThreads);
+	m.draw();
 
 	ofSetColor(255,0,0);
 	float triangleH = MAX(h, 10);
 	float xx = step * (currentFrame + 0.5);
 	ofDrawTriangle(xx, 0, xx + triangleH * 0.5f, -triangleH, xx - triangleH * 0.5f, -triangleH);
 
-	if(numThreads > 0) msg += "\nBuffer: " + ofToString(100 * bufferFullness, 1) + "%";
-	msg += "\nLoadTimeAvg: " + ofToString(loadTimeAvg, 2) + "ms";
-	msg += "\nRes: " + ofToString(tex.getWidth(),0) + " x " + ofToString(tex.getHeight(),0);
-	ofDrawBitmapStringHighlight(msg, 0, 16 + h * 1.25);
 	ofPopMatrix();
-
 	ofSetColor(255);
 }
 
 
 void ofxImageSequenceVideo::advanceFrameInternal(){
 	if(!loaded) return;
-	if(numThreads > 0){
-		if((CURRENT_FRAME_ALT[currentFrame].state == THREAD_FINISHED_LOADING || CURRENT_FRAME_ALT[currentFrame].state == LOADED) &&
-		   CURRENT_FRAME_ALT[currentFrame].pixels.isAllocated()){ //unload old pixels
-			CURRENT_FRAME_ALT[currentFrame].state = NOT_LOADED;
-			CURRENT_FRAME_ALT[currentFrame].pixels.clear();
+
+	if(numThreads > 0){ //ASYNC
+		auto & curFrame = CURRENT_FRAME_ALT[currentFrame];
+		bool loaded = (curFrame.state == PixelState::THREAD_FINISHED_LOADING || curFrame.state == PixelState::LOADED);
+		if(loaded && curFrame.pixels.isAllocated()){ //unload old pixels
+			curFrame.state = PixelState::NOT_LOADED;
+			curFrame.pixels.clear();
 		}
 	}
+
 	currentFrame++;
+
 	if(!shouldLoop && currentFrame == numFrames -1){
 		EventInfo info;
 		ofNotifyEvent(eventMovieEnded, info, this);
@@ -400,26 +490,27 @@ void ofxImageSequenceVideo::loadPixelsNow(int newFrame, int oldFrame){
 		uint64_t t = ofGetElapsedTimeMicros();
 
 		if(oldFrame >= 0){
-			CURRENT_FRAME_ALT[oldFrame].state = NOT_LOADED;
+			CURRENT_FRAME_ALT[oldFrame].state = PixelState::NOT_LOADED;
 		}
+		auto & newFrameData = CURRENT_FRAME_ALT[newFrame];
 		#if defined(USE_TURBO_JPEG)
-		string extension = ofToLower(ofFilePath::getFileExt(CURRENT_FRAME_ALT[newFrame].filePath));
+		string extension = ofToLower(ofFilePath::getFileExt(newFrameData.filePath));
 		if(extension == "jpeg" || extension == "jpg"){
 			TS_START_ACC("load jpg disk");
 			ofxTurboJpeg jpeg;
-			jpeg.load(currentPixels, CURRENT_FRAME_ALT[newFrame].filePath);
+			jpeg.load(currentPixels, newFrameData.filePath);
 			TS_STOP_ACC("load jpg disk");
 		}else{
 			TS_START_ACC("load pix disk");
-			ofLoadImage(currentPixels, CURRENT_FRAME_ALT[newFrame].filePath);
+			ofLoadImage(currentPixels, newFrameData.filePath);
 			TS_STOP_ACC("load pix disk");
 		}
 		#else
 		TS_START_ACC("load pix disk");
-		ofLoadImage(currentPixels, CURRENT_FRAME_ALT[newFrame].filePath); //load pixels from disk
+		ofLoadImage(currentPixels, newFrameData.filePath); //load pixels from disk
 		TS_STOP_ACC("load pix disk");
 		#endif
-		CURRENT_FRAME_ALT[newFrame].state = LOADED;
+		newFrameData.state = PixelState::LOADED;
 		loadTimeAvg = ofLerp(loadTimeAvg, (ofGetElapsedTimeMicros() - t) / 1000.0f, 0.1);
 		texNeedsLoad = true;
 	}
@@ -484,11 +575,9 @@ ofPixels& ofxImageSequenceVideo::getPixels(){
 	if(!loaded) return pix;
 	else{
 		if(numThreads > 0){
-			bool pixelsAreReady =
-				CURRENT_FRAME_ALT[currentFrame].state == THREAD_FINISHED_LOADING ||
-				CURRENT_FRAME_ALT[currentFrame].state == LOADED;
-			if(pixelsAreReady){
-				return CURRENT_FRAME_ALT[currentFrame].pixels;
+			auto & curFrame = CURRENT_FRAME_ALT[currentFrame];
+			if(curFrame.state == PixelState::THREAD_FINISHED_LOADING || curFrame.state == PixelState::LOADED){
+				return curFrame.pixels;
 			}else{
 				return pix;
 			}
@@ -504,7 +593,25 @@ ofTexture& ofxImageSequenceVideo::getTexture(){
 	static ofTexture nulltex;
 	if(!loaded) return nulltex;
 
-	return tex;
+	if(numThreads == 0){ //inmedate mode
+		return tex;
+	}else{
+		if(keepTexturesInGpuMem){
+			if(CURRENT_FRAME_ALT[currentFrame].texState == TextureState::LOADED){
+				return CURRENT_FRAME_ALT[currentFrame].texture;
+			}else{
+				int prevFrame = currentFrame - 1;
+				if (prevFrame < 0 ) prevFrame = numFrames - 1;
+				if(CURRENT_FRAME_ALT[prevFrame].texState == TextureState::LOADED){
+					return CURRENT_FRAME_ALT[prevFrame].texture;
+				}else{
+					return nulltex;
+				}
+			}
+		}else{
+			return tex;
+		}
+	}
 }
 
 
