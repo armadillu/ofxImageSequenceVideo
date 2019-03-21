@@ -51,6 +51,7 @@ public:
 	//set the img sequence framerate (playback speed)
 	void setPlaybackFramerate(float framerate);
 
+	void setShouldUseTexCompression(bool comp){useTexCompression = comp;};
 
 	void update(float dt);
 
@@ -167,6 +168,8 @@ protected:
 
 	int numBufferFrames = 8;
 	int numThreads = 3;
+
+	bool useTexCompression = false;
 
 	ofxImageSequenceVideo::LoadResults loadFrameThread(int frame);
 

@@ -185,11 +185,14 @@ void ofxImageSequenceVideo::update(float dt){
 
 				if(curFrame.texState == TextureState::NOT_LOADED){
 
-					//tex.setCompression(OF_COMPRESS_SRGB); //compress texture on GPU? TODO!
-
 					TS_SCOPE("load 2 GPU");
 
 					if(keepTexturesInGpuMem){ //load into frames vector
+
+						if(useTexCompression){
+							curFrame.texture.setCompression(OF_COMPRESS_SRGB); //compress texture on GPU? TODO!
+						}
+						
 						curFrame.texture.loadData(curFrame.pixels);
 						curFrame.texState = TextureState::LOADED;
 					}else{ //load into reusable texture
@@ -415,6 +418,7 @@ std::string ofxImageSequenceVideo::getStatus(){
 	auto & texture = getTexture();
 	msg += "\nRes: " + ofToString(texture.getWidth(),0) + " x " + ofToString(texture.getHeight(),0);
 	msg += "\nKeepInGPU: " + string(keepTexturesInGpuMem ? "YES" : "FALSE");
+	msg += "\nCompressed: " + string(useTexCompression ? "YES" : "FALSE");
 
 	return msg;
 }
