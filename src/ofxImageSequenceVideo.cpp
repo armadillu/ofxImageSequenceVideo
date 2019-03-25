@@ -185,7 +185,7 @@ void ofxImageSequenceVideo::update(float dt){
 
 				if(curFrame.texState == TextureState::NOT_LOADED){
 
-					TS_SCOPE("load 2 GPU");
+//					TS_SCOPE("load 2 GPU");
 
 					if(keepTexturesInGpuMem){ //load into frames vector
 
