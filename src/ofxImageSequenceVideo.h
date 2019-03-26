@@ -162,7 +162,7 @@ protected:
 		float elapsedTime;
 	};
 
-	float loadTimeAvg = 0.0;
+	float loadTimeAvg = 0.0f;
 
 	vector<std::future<LoadResults>> tasks; //store thread futures
 
@@ -175,7 +175,7 @@ protected:
 
 	void eraseOutOfBufferPixelCache();
 
-	float bufferFullness = 0.0; //just to smooth out buffer len 
+	float bufferFullness = 0.0f; //just to smooth out buffer len 
 
 	void loadPixelsNow(int newFrame, int oldFrame);
 	

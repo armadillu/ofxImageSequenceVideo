@@ -341,7 +341,7 @@ void ofxImageSequenceVideo::handleThreadSpawn(){
 		}
 		if( !fullyLoaded && frameToLoad < furthestFrame ){ //if the frame is within the buffer zone, spawn a thread to load it
 			int moduloFrameToLoad = frameToLoad%numFrames;
-			ofLogNotice("ofxImageSequenceVideo") << ofGetFrameNum() << " - spawn thread to load frame " << moduloFrameToLoad;
+			//ofLogNotice("ofxImageSequenceVideo") << ofGetFrameNum() << " - spawn thread to load frame " << moduloFrameToLoad;
 			//if keeping textures in mem, dont spawn thread to load pixels if textures are already there
 			if( !keepTexturesInGpuMem || (keepTexturesInGpuMem && CURRENT_FRAME_ALT[moduloFrameToLoad].texState != TextureState::LOADED)){
 				CURRENT_FRAME_ALT[moduloFrameToLoad].state = PixelState::LOADING;
