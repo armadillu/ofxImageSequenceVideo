@@ -13,6 +13,8 @@
 #if defined( TARGET_OSX ) || defined( TARGET_LINUX )
 	#include <getopt.h>
 	#include <dirent.h>
+#else
+	#include <dirent_vs.h>
 #endif
 
 
@@ -59,6 +61,7 @@ void ofxImageSequenceVideo::setup(int numThreads, int bufferSize, bool keepTextu
 	this->numBufferFrames = bufferSize;
 	this->numThreads = numThreads;
 	this->keepTexturesInGpuMem = keepTexturesInGpuMem;
+	frameOnScreenTime = ofRandom(1.0f / 30.0f);
 }
 
 
@@ -193,10 +196,14 @@ void ofxImageSequenceVideo::update(float dt){
 							curFrame.texture.setCompression(OF_COMPRESS_SRGB); //compress texture on GPU? TODO!
 						}
 						
+						TS_START_ACC("load tex KEEP");
 						curFrame.texture.loadData(curFrame.pixels);
+						TS_STOP_ACC("load tex KEEP");
 						curFrame.texState = TextureState::LOADED;
 					}else{ //load into reusable texture
+						TS_START_ACC("load tex REUSE");
 						tex.loadData(curFrame.pixels);
+						TS_STOP_ACC("load tex REUSE");
 					}
 				}
 			}
@@ -211,15 +218,26 @@ void ofxImageSequenceVideo::update(float dt){
 		bool loop = (shouldLoop || (!shouldLoop && (currentFrame <= (numFrames - 1))));
 		bool isTextureReady = CURRENT_FRAME_ALT[currentFrame].texState == TextureState::LOADED;
 
+		TS_START_ACC("handleeeeeeeeeeeeeeeeeeeee");
 		//note we hold playback until pixels are ready (instead of dropping frames - otherwise things get very complicated)
 		if(playback && timeToAdvanceFrame && loop && (pixelsReady || isTextureReady)){
 			handleScreenTimeCounters(dt);
+			TS_START_ACC("advance frame internal");
 			advanceFrameInternal();
+			TS_STOP_ACC("advance frame internal");
 		}
 
 		handleLooping(true);
+		
+		TS_START_ACC("thread cleanup");
 		handleThreadCleanup();
+		TS_STOP_ACC("thread cleanup");
+
+		TS_START_ACC("thread spawn");
 		handleThreadSpawn();
+		TS_STOP_ACC("thread spawn");
+
+		TS_STOP_ACC("handleeeeeeeeeeeeeeeeeeeee");
 
 		//update buffer statistics
 		int numLoaded = 0;
@@ -323,7 +341,7 @@ void ofxImageSequenceVideo::handleThreadSpawn(){
 		}
 		if( !fullyLoaded && frameToLoad < furthestFrame ){ //if the frame is within the buffer zone, spawn a thread to load it
 			int moduloFrameToLoad = frameToLoad%numFrames;
-			//ofLogNotice("ofxImageSequenceVideo") << ofGetFrameNum() << " - spawn thread to load frame " << moduloFrameToLoad;
+			ofLogNotice("ofxImageSequenceVideo") << ofGetFrameNum() << " - spawn thread to load frame " << moduloFrameToLoad;
 			//if keeping textures in mem, dont spawn thread to load pixels if textures are already there
 			if( !keepTexturesInGpuMem || (keepTexturesInGpuMem && CURRENT_FRAME_ALT[moduloFrameToLoad].texState != TextureState::LOADED)){
 				CURRENT_FRAME_ALT[moduloFrameToLoad].state = PixelState::LOADING;
@@ -415,6 +433,7 @@ std::string ofxImageSequenceVideo::getStatus(){
 
 	if(numThreads > 0) msg += "\nBuffer: " + ofToString(100 * bufferFullness, 1) + "%";
 	msg += "\nLoadTimeAvg: " + ofToString(loadTimeAvg, 2) + "ms";
+	msg += "\nFrameRate: " + ofToString(1.0 / frameDuration, 2) + "fps";
 	auto & texture = getTexture();
 	msg += "\nRes: " + ofToString(texture.getWidth(),0) + " x " + ofToString(texture.getHeight(),0);
 	msg += "\nKeepInGPU: " + string(keepTexturesInGpuMem ? "YES" : "FALSE");

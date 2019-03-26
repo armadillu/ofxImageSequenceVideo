@@ -135,10 +135,10 @@ protected:
 	void handleLooping(bool triggerEvents);
 
 	int currentFrame = 0;
-	float frameOnScreenTime = 0;
+	float frameOnScreenTime = 0.0f;
 
 	int numFrames = 0;
-	float frameDuration = 0; //1.0f/framerate
+	float frameDuration = 0.0f; //1.0f/framerate
 
 	bool newData = false; //keeps track of state of pixels THIS FRAME
 	bool texNeedsLoad = false;
