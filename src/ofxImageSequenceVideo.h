@@ -98,6 +98,9 @@ public:
 	ofFastEvent<EventInfo> eventMovieLooped;
 	ofFastEvent<EventInfo> eventMovieEnded;
 
+	//get a sorted list of all imgs in a dir
+	static vector<string> getImagesAtDirectory(const string & path);
+
 protected:
 
 	enum class PixelState{

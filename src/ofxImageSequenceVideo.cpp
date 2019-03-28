@@ -73,11 +73,10 @@ static const char *get_filename_extension(const char *filename) {
 }
 
 
-void ofxImageSequenceVideo::loadImageSequence(const string & path, float frameRate){
+vector<string> ofxImageSequenceVideo::getImagesAtDirectory(const string & path){
 
 	DIR *dir2;
 	struct dirent *ent;
-
 	vector<string> fileNames;
 	string fullPath = ofToDataPath(path,true);
 
@@ -103,8 +102,16 @@ void ofxImageSequenceVideo::loadImageSequence(const string & path, float frameRa
 		}
 		closedir(dir2);
 	}
-
 	std::sort(fileNames.begin(), fileNames.end());
+	return fileNames;
+}
+
+
+void ofxImageSequenceVideo::loadImageSequence(const string & path, float frameRate){
+
+
+	vector<string> fileNames = ofxImageSequenceVideo::getImagesAtDirectory(path);
+
 	ofLogNotice("ofxImageSequenceVideo") << "loadImageSequence: \"" << path << "\"";
 
 	int num = fileNames.size();
