@@ -57,11 +57,11 @@ ofxImageSequenceVideo::~ofxImageSequenceVideo(){
 }
 
 
-void ofxImageSequenceVideo::setup(int numThreads, int bufferSize, bool keepTexturesInGpuMem){
+void ofxImageSequenceVideo::setup(int numThreads, int bufferSize, bool useDXTcompression){
 	this->numBufferFrames = bufferSize;
 	this->numThreads = numThreads;
-	this->keepTexturesInGpuMem = keepTexturesInGpuMem;
-	frameOnScreenTime = ofRandom(1.0f / 30.0f);
+	this->keepTexturesInGpuMem = false;
+	this->useDXTCompression = useDXTcompression;
 }
 
 
@@ -73,30 +73,27 @@ static const char *get_filename_extension(const char *filename) {
 }
 
 
-vector<string> ofxImageSequenceVideo::getImagesAtDirectory(const string & path){
+vector<string> ofxImageSequenceVideo::getImagesAtDirectory(const string & path, bool useDxtCompression){
 
 	DIR *dir2;
 	struct dirent *ent;
 	vector<string> fileNames;
 	string fullPath = ofToDataPath(path,true);
 
+	const auto imageTypes = ofxImageSequenceVideo::getSupportedImageTypes();
+
 	if ((dir2 = opendir(fullPath.c_str()) ) != NULL) {
 
 		while ((ent = readdir (dir2)) != NULL) {
-			const char * ext = get_filename_extension(ent->d_name);
+			string ext = string(get_filename_extension(ent->d_name));
 			bool isVisible = ent->d_name[0] != '.';
-			if ( isVisible &&
-				(strcmp( ext, "tga") == 0 ||
-				 strcmp( ext, "gif") == 0 ||
-				 strcmp( ext, "jpeg") == 0 ||
-				 strcmp( ext, "jpg") == 0 ||
-				 strcmp( ext, "jp2") == 0 ||
-				 strcmp( ext, "bmp") == 0 ||
-				 strcmp( ext, "png") == 0 ||
-				 strcmp( ext, "tif") == 0 ||
-				 strcmp( ext, "tiff") == 0
-				 )
-				){
+			bool isCompatibleType;
+			if(!useDxtCompression){
+				isCompatibleType = std::find(imageTypes.begin(), imageTypes.end(), ext ) != imageTypes.end();
+			}else{
+				isCompatibleType = ext == "dxt";
+			}
+			if ( isVisible && isCompatibleType ){
 				fileNames.push_back(string(ent->d_name));
 			}
 		}
@@ -110,7 +107,7 @@ vector<string> ofxImageSequenceVideo::getImagesAtDirectory(const string & path){
 void ofxImageSequenceVideo::loadImageSequence(const string & path, float frameRate){
 
 
-	vector<string> fileNames = ofxImageSequenceVideo::getImagesAtDirectory(path);
+	vector<string> fileNames = ofxImageSequenceVideo::getImagesAtDirectory(path, useDXTCompression);
 
 	ofLogNotice("ofxImageSequenceVideo") << "loadImageSequence: \"" << path << "\"";
 
@@ -123,7 +120,9 @@ void ofxImageSequenceVideo::loadImageSequence(const string & path, float frameRa
 		currentFrame = 0;
 		frameOnScreenTime = -1; //force a data load!
 		newData = false;
-		tex.clear();
+		if(shouldLoadTexture){
+			tex.clear();
+		}
 
 		//move to the next data struct
 		currentFrameSet++;
@@ -157,13 +156,26 @@ size_t ofxImageSequenceVideo::getEstimatdVramUse(){
 			size_t numChannels = ofGetNumChannelsFromGLFormat(tex.getTextureData().glInternalFormat);
 			return tex.getWidth() * tex.getHeight() * numChannels * (size_t)numFrames;
 		}
-		int w, h, nChannels;
-		bool ok;
-		getImageInfo(CURRENT_FRAME_ALT[0].filePath, w, h, nChannels, ok);
-		if(ok){
-			return (size_t)numFrames * (size_t)w * (size_t)h * (size_t)nChannels;
+		if(!useDXTCompression){
+			int w, h, nChannels;
+			bool ok;
+			getImageInfo(CURRENT_FRAME_ALT[0].filePath, w, h, nChannels, ok);
+			if(ok){
+				return (size_t)numFrames * (size_t)w * (size_t)h * (size_t)nChannels;
+			}else{
+				ofLogError("ofxImageSequenceVideo") << "Can't getEstimatdVramUse(). cant load image! " << CURRENT_FRAME_ALT[0].filePath;
+				return 0;
+			}
 		}else{
-			ofLogError("ofxImageSequenceVideo") << "Can't getEstimatdVramUse(). cant load image! " << CURRENT_FRAME_ALT[0].filePath;
+			ofxDXT::Data data;
+			bool ok = ofxDXT::loadFromDisk(CURRENT_FRAME_ALT[0].filePath, data);
+			if(ok){
+				size_t compressionFactor;
+				if (data.getCompressionType() == ofxDXT::DXT1) compressionFactor = 2; //dxt1 ratio is 8:1
+				else compressionFactor = 1; //DXT3 & 5 ratios 4:1
+				return (size_t)numFrames * (size_t)data.getWidth() * (size_t)data.getHeight() / compressionFactor;
+			}
+			ofLogError("ofxImageSequenceVideo") << "Can't getEstimatdVramUse(). cant load DXT image! " << CURRENT_FRAME_ALT[0].filePath;
 			return 0;
 		}
 	}else{
@@ -198,18 +210,21 @@ void ofxImageSequenceVideo::update(float dt){
 //					TS_SCOPE("load 2 GPU");
 
 					if(keepTexturesInGpuMem){ //load into frames vector
-
-						if(useTexCompression){
-							curFrame.texture.setCompression(OF_COMPRESS_SRGB); //compress texture on GPU? TODO!
-						}
-						
 						TS_START_ACC("load tex KEEP");
-						curFrame.texture.loadData(curFrame.pixels);
+						if(!useDXTCompression){
+							curFrame.texture.loadData(curFrame.pixels);
+						}else{
+							ofxDXT::loadDataIntoTexture(curFrame.compressedPixels, curFrame.texture);
+						}
 						TS_STOP_ACC("load tex KEEP");
 						curFrame.texState = TextureState::LOADED;
 					}else{ //load into reusable texture
 						TS_START_ACC("load tex REUSE");
-						tex.loadData(curFrame.pixels);
+						if(!useDXTCompression){
+							tex.loadData(curFrame.pixels);
+						}else{
+							ofxDXT::loadDataIntoTexture(curFrame.compressedPixels, tex);
+						}
 						TS_STOP_ACC("load tex REUSE");
 					}
 				}
@@ -272,8 +287,12 @@ void ofxImageSequenceVideo::update(float dt){
 		if(texNeedsLoad && shouldLoadTexture){
 			texNeedsLoad = false;
 			TS_START_ACC("load pix GPU");
-			//tex.setCompression(OF_COMPRESS_SRGB); //compress texture on GPU?
-			tex.loadData(currentPixels);
+
+			if(!useDXTCompression){
+				tex.loadData(currentPixels);
+			}else{
+				ofxDXT::loadDataIntoTexture(currentPixelsCompressed, tex);
+			}
 			TS_STOP_ACC("load pix GPU");
 		}
 	}
@@ -363,17 +382,21 @@ ofxImageSequenceVideo::LoadResults ofxImageSequenceVideo::loadFrameThread(int fr
 
 	uint64_t t = ofGetElapsedTimeMicros();
 	FrameInfo & curFrame = CURRENT_FRAME_ALT[frame];
-	#if defined(USE_TURBO_JPEG)
-	string extension = ofToLower(ofFilePath::getFileExt(curFrame.filePath));
-	if(extension == "jpeg" || extension == "jpg"){
-		ofxTurboJpeg jpeg;
-		jpeg.load(curFrame.pixels, curFrame.filePath);
+	if(!useDXTCompression){
+		#if defined(USE_TURBO_JPEG)
+		string extension = ofToLower(ofFilePath::getFileExt(curFrame.filePath));
+		if(extension == "jpeg" || extension == "jpg"){
+			ofxTurboJpeg jpeg;
+			jpeg.load(curFrame.pixels, curFrame.filePath);
+		}else{
+			ofLoadImage(curFrame.pixels, curFrame.filePath);
+		}
+		#else
+			ofLoadImage(curFrame.pixels, curFrame.filePath);
+		#endif
 	}else{
-		ofLoadImage(curFrame.pixels, curFrame.filePath);
+		ofxDXT::loadFromDisk(curFrame.filePath, curFrame.compressedPixels);
 	}
-	#else
-		ofLoadImage(curFrame.pixels, curFrame.filePath);
-	#endif
 	curFrame.state = PixelState::THREAD_FINISHED_LOADING;
 	t = ofGetElapsedTimeMicros() - t;
 	LoadResults results;
@@ -444,7 +467,7 @@ std::string ofxImageSequenceVideo::getStatus(){
 	auto & texture = getTexture();
 	msg += "\nRes: " + ofToString(texture.getWidth(),0) + " x " + ofToString(texture.getHeight(),0);
 	msg += "\nKeepInGPU: " + string(keepTexturesInGpuMem ? "YES" : "FALSE");
-	msg += "\nCompressed: " + string(useTexCompression ? "YES" : "FALSE");
+	msg += "\nDXT Compressed: " + string(useDXTCompression ? "YES" : "FALSE");
 
 	return msg;
 }
@@ -567,23 +590,27 @@ void ofxImageSequenceVideo::loadPixelsNow(int newFrame, int oldFrame){
 			CURRENT_FRAME_ALT[oldFrame].state = PixelState::NOT_LOADED;
 		}
 		auto & newFrameData = CURRENT_FRAME_ALT[newFrame];
-		#if defined(USE_TURBO_JPEG)
-		string extension = ofToLower(ofFilePath::getFileExt(newFrameData.filePath));
-		if(extension == "jpeg" || extension == "jpg"){
-			TS_START_ACC("load jpg disk");
-			ofxTurboJpeg jpeg;
-			jpeg.load(currentPixels, newFrameData.filePath);
-			TS_STOP_ACC("load jpg disk");
-		}else{
+		if(!useDXTCompression){
+			#if defined(USE_TURBO_JPEG)
+			string extension = ofToLower(ofFilePath::getFileExt(newFrameData.filePath));
+			if(extension == "jpeg" || extension == "jpg"){
+				TS_START_ACC("load jpg disk");
+				ofxTurboJpeg jpeg;
+				jpeg.load(currentPixels, newFrameData.filePath);
+				TS_STOP_ACC("load jpg disk");
+			}else{
+				TS_START_ACC("load pix disk");
+				ofLoadImage(currentPixels, newFrameData.filePath);
+				TS_STOP_ACC("load pix disk");
+			}
+			#else
 			TS_START_ACC("load pix disk");
-			ofLoadImage(currentPixels, newFrameData.filePath);
+			ofLoadImage(currentPixels, newFrameData.filePath); //load pixels from disk
 			TS_STOP_ACC("load pix disk");
+			#endif
+		}else{
+			ofxDXT::loadFromDisk(newFrameData.filePath, currentPixelsCompressed);
 		}
-		#else
-		TS_START_ACC("load pix disk");
-		ofLoadImage(currentPixels, newFrameData.filePath); //load pixels from disk
-		TS_STOP_ACC("load pix disk");
-		#endif
 		newFrameData.state = PixelState::LOADED;
 		loadTimeAvg = ofLerp(loadTimeAvg, (ofGetElapsedTimeMicros() - t) / 1000.0f, 0.1);
 		texNeedsLoad = true;

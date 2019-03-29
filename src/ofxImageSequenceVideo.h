@@ -10,6 +10,7 @@
 #include "ofMain.h"
 #include <future>
 
+#include "ofxDXT.h"
 #if defined(USE_TURBO_JPEG) //you can define this in your pre-processor macros to use turbojpeg to speed up jpeg loading 
 	#include "ofxTurboJpeg.h"
 #endif
@@ -22,19 +23,17 @@ public:
 
 	ofxImageSequenceVideo();
 	~ofxImageSequenceVideo();
+	
 
 	//There are basically 2 operation modes, ASYNC and INMEDIATE. if you specify numThreads = 0,
 	//everything will be in immediate mode. All work will be done in the main thread, blocking on update().
 	//if you specify  numThreads >= 1, threads are spawned to pre-load frames up to the buffer size
 	//you request, so that main thread only loads tex data to GPU (preferred for realtime).
 	//note that bufferSize is irrelevant in immediate mode.
-
-	//keepTexturesInGpuMem==true will playback as usual, but will also keep the ofTexture of each frame around
-	//during the first playback pass, all frames will be loaded from disk, but on the following
-	//passes, no more loading will happen as the ofTextures already will be in the GPU.
-	//This of course uses tons of GPU memory, so use wisely. See getEstimatdVramUse(); to get an estimate
-	//of how much memory your sequence will use.
-	void setup(int numThreads, int bufferSize, bool keepTexturesInGpuMem);
+	//
+	//useDXTcompression == TRUE >> assumes all your images are in a .dxt format on disk;
+	//look into ofxDXT to see how to compress them
+	void setup(int numThreads, int bufferSize, bool useDXTcompression);
 	//NOTE - dont change those on the fly, to be setup once before you load the IMG sequence
 
 	//TODO - don't reuse objects, it will probably fail to load a second img sequence so only load once
@@ -42,7 +41,11 @@ public:
 	void loadImageSequence(const string & path, float frameRate);
 
 	//if TRUE, it effectivelly loads the whole img sequence into GPU (during the 1st playback)
-	//this uses tons of VRAM depending on your sequence size & length, but once its all loaded, no more work is done
+	//during the first playback pass, all frames will be loaded from disk, but on the following
+	//passes, no more loading will happen as the ofTextures already will be in the GPU.
+	//This of course uses tons of GPU memory, so use wisely. See getEstimatdVramUse(); to get an estimate
+	//of how much memory your sequence will use.
+	//defaults to FALSE
 	void setKeepTexturesInGpuMem(bool keep){keepTexturesInGpuMem = keep; }
 
 	//set to FALSE for it to avoid GL calls - only ofPixels will be loaded (handy to use it from a thread)
@@ -51,10 +54,7 @@ public:
 	//set the img sequence framerate (playback speed)
 	void setPlaybackFramerate(float framerate);
 
-	void setShouldUseTexCompression(bool comp){useTexCompression = comp;};
-
 	void update(float dt);
-
 
 	//returns estimated number of bytes it would take to load the whole img sequence in VRAM
 	//this is a rather expensive operation if no frame is loaded already, as we need to load
@@ -88,7 +88,6 @@ public:
 	//get img sequence stats as a string
 	std::string getStatus();
 
-
 	struct EventInfo{
 		ofVec2f movieTexSize;
 		string movieFile;
@@ -99,9 +98,11 @@ public:
 	ofFastEvent<EventInfo> eventMovieEnded;
 
 	//get a sorted list of all imgs in a dir
-	static vector<string> getImagesAtDirectory(const string & path);
+	static vector<string> getImagesAtDirectory(const string & path, bool useDxtCompression);
 
 protected:
+
+	static vector<string> getSupportedImageTypes(){ return{"tga", "gif", "jpeg", "jpg", "jp2", "bmp", "png", "tif", "tiff"};}
 
 	enum class PixelState{
 		NOT_LOADED,
@@ -118,6 +119,7 @@ protected:
 	struct FrameInfo{
 		string filePath;
 		ofPixels pixels;
+		ofxDXT::Data compressedPixels;
 		PixelState state = PixelState::NOT_LOADED;
 		float loadTime = 0; //ms
 
@@ -157,6 +159,7 @@ protected:
 
 	ofTexture tex;
 	ofPixels currentPixels; //used in immediate mode only (numThreads==0)
+	ofxDXT::Data currentPixelsCompressed; //same as above, but with DXT compression
 	bool shouldLoadTexture = true; //use setUseTexture() to disable texture load (and GL calls) alltogether
 									//this allows using this class from non-main thread
 
@@ -172,7 +175,7 @@ protected:
 	int numBufferFrames = 8;
 	int numThreads = 3;
 
-	bool useTexCompression = false;
+	bool useDXTCompression = false;
 
 	ofxImageSequenceVideo::LoadResults loadFrameThread(int frame);
 
