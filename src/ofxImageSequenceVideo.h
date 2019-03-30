@@ -19,7 +19,7 @@ class ofxImageSequenceVideo{
 
 public:
 
-	static const int maxFramePingPongDataStructs = 10;
+	static const int maxFramePingPongDataStructs = 3;
 
 	ofxImageSequenceVideo();
 	~ofxImageSequenceVideo();
@@ -38,7 +38,7 @@ public:
 
 	//TODO - don't reuse objects, it will probably fail to load a second img sequence so only load once
 	//otherwise things might go wrong
-	void loadImageSequence(const string & path, float frameRate);
+	bool loadImageSequence(const string & path, float frameRate);
 
 	//if TRUE, it effectivelly loads the whole img sequence into GPU (during the 1st playback)
 	//during the first playback pass, all frames will be loaded from disk, but on the following
@@ -47,6 +47,10 @@ public:
 	//of how much memory your sequence will use.
 	//defaults to FALSE
 	void setKeepTexturesInGpuMem(bool keep){keepTexturesInGpuMem = keep; }
+	bool getKeepTexturesInGpuMem(){return keepTexturesInGpuMem;}
+
+	//this call is a bit expensive as we need to walk all the textures, use sparsingly or for debug only.
+	bool areAllTexturesPreloaded(); //(in In Gpu Mem), only makes sense when setKeepTexturesInGpuMem(TRUE);
 
 	//set to FALSE for it to avoid GL calls - only ofPixels will be loaded (handy to use it from a thread)
 	void setUseTexture(bool useTex){shouldLoadTexture = useTex;};
@@ -153,9 +157,10 @@ protected:
 
 	vector<FrameInfo> frames[maxFramePingPongDataStructs];
 	int currentFrameSet = -1;
-	//this weird thing is to do frames structures ping-poing so that when we load a new
+	//this weird thing is to make the "frames" structure ping-poing so that when we load a new
 	//video, we can safely move to a new struct and leave the running threads do its thing on the
-	//old struct, without having ot worry about destroying the memory they are working on
+	//old struct, without having to worry about destroying the memory they are working on
+	//TODO - sloppy and wasteful!
 
 	ofTexture tex;
 	ofPixels currentPixels; //used in immediate mode only (numThreads==0)

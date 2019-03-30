@@ -104,7 +104,7 @@ vector<string> ofxImageSequenceVideo::getImagesAtDirectory(const string & path, 
 }
 
 
-void ofxImageSequenceVideo::loadImageSequence(const string & path, float frameRate){
+bool ofxImageSequenceVideo::loadImageSequence(const string & path, float frameRate){
 
 
 	vector<string> fileNames = ofxImageSequenceVideo::getImagesAtDirectory(path, useDXTCompression);
@@ -138,12 +138,20 @@ void ofxImageSequenceVideo::loadImageSequence(const string & path, float frameRa
 		if(numThreads > 0){
 			handleThreadSpawn();
 		}
+		return true;
 	}else{
 		loaded = false;
+		ofLogError("ofxImageSequenceVideo") << "can't loadImageSequence()! Not enought image files in \"" << path << "\"";
+		return false;
 	}
 }
 
 size_t ofxImageSequenceVideo::getEstimatdVramUse(){
+
+	if(currentFrameSet < 0){
+		ofLogError("ofxImageSequenceVideo") << "can't getEstimatdVramUse() because no image sequence was loaded!";
+		return 0;
+	}
 
 	if(frames[currentFrameSet].size()){
 
@@ -173,7 +181,9 @@ size_t ofxImageSequenceVideo::getEstimatdVramUse(){
 				size_t compressionFactor;
 				if (data.getCompressionType() == ofxDXT::DXT1) compressionFactor = 2; //dxt1 ratio is 8:1
 				else compressionFactor = 1; //DXT3 & 5 ratios 4:1
-				return (size_t)numFrames * (size_t)data.getWidth() * (size_t)data.getHeight() / compressionFactor;
+				size_t bytes = (size_t)numFrames * (size_t)data.getWidth() * (size_t)data.getHeight() / compressionFactor;
+				data.clear();
+				return bytes;
 			}
 			ofLogError("ofxImageSequenceVideo") << "Can't getEstimatdVramUse(). cant load DXT image! " << CURRENT_FRAME_ALT[0].filePath;
 			return 0;
@@ -219,13 +229,13 @@ void ofxImageSequenceVideo::update(float dt){
 						TS_STOP_ACC("load tex KEEP");
 						curFrame.texState = TextureState::LOADED;
 					}else{ //load into reusable texture
-						TS_START_ACC("load tex REUSE");
+						TS_START_ACC("load tex ONE-OFF");
 						if(!useDXTCompression){
 							tex.loadData(curFrame.pixels);
 						}else{
 							ofxDXT::loadDataIntoTexture(curFrame.compressedPixels, tex);
 						}
-						TS_STOP_ACC("load tex REUSE");
+						TS_STOP_ACC("load tex ONE-OFF");
 					}
 				}
 			}
@@ -240,26 +250,15 @@ void ofxImageSequenceVideo::update(float dt){
 		bool loop = (shouldLoop || (!shouldLoop && (currentFrame <= (numFrames - 1))));
 		bool isTextureReady = CURRENT_FRAME_ALT[currentFrame].texState == TextureState::LOADED;
 
-		TS_START_ACC("handleeeeeeeeeeeeeeeeeeeee");
 		//note we hold playback until pixels are ready (instead of dropping frames - otherwise things get very complicated)
 		if(playback && timeToAdvanceFrame && loop && (pixelsReady || isTextureReady)){
 			handleScreenTimeCounters(dt);
-			TS_START_ACC("advance frame internal");
 			advanceFrameInternal();
-			TS_STOP_ACC("advance frame internal");
 		}
 
 		handleLooping(true);
-		
-		TS_START_ACC("thread cleanup");
 		handleThreadCleanup();
-		TS_STOP_ACC("thread cleanup");
-
-		TS_START_ACC("thread spawn");
 		handleThreadSpawn();
-		TS_STOP_ACC("thread spawn");
-
-		TS_STOP_ACC("handleeeeeeeeeeeeeeeeeeeee");
 
 		//update buffer statistics
 		int numLoaded = 0;
@@ -412,6 +411,11 @@ void ofxImageSequenceVideo::eraseAllPixelCache(){
 		FrameInfo & curFrame = CURRENT_FRAME_ALT[i];
 		if(curFrame.state == PixelState::THREAD_FINISHED_LOADING || curFrame.state == PixelState::LOADED){
 			curFrame.pixels.clear();
+			//curFrame.compressedPixels.clear(); //note that because ofBuffer internally holds a vector, even if you
+												//clear the ofBuffer, the vector class keeps its "capacity" allocation
+												//which means it will not release its RAM. That's why we destroy the obj
+												//alltogether
+			curFrame.compressedPixels = ofxDXT::Data();
 			curFrame.state = PixelState::NOT_LOADED;
 		}
 	}
@@ -439,6 +443,7 @@ void ofxImageSequenceVideo::eraseOutOfBufferPixelCache(){
 		FrameInfo & curFrame = CURRENT_FRAME_ALT[i];
 		if(curFrame.state == PixelState::THREAD_FINISHED_LOADING || curFrame.state == PixelState::LOADED){
 			curFrame.pixels.clear();
+			curFrame.compressedPixels = ofxDXT::Data(); //clear pixels data
 			curFrame.state = PixelState::NOT_LOADED;
 		}
 	}
@@ -447,6 +452,7 @@ void ofxImageSequenceVideo::eraseOutOfBufferPixelCache(){
 		FrameInfo & curFrame = CURRENT_FRAME_ALT[i];
 		if(curFrame.state == PixelState::THREAD_FINISHED_LOADING || curFrame.state == PixelState::LOADED){
 			curFrame.pixels.clear();
+			curFrame.compressedPixels = ofxDXT::Data(); //clear pixels data
 			curFrame.state = PixelState::NOT_LOADED;
 		}
 	}
@@ -504,11 +510,12 @@ void ofxImageSequenceVideo::drawDebug(float x, float y, float w){
 	ofColor c;
 	for(int i = 0; i < numFrames; i++){
 		switch (CURRENT_FRAME_ALT[i].state) {
-			case PixelState::NOT_LOADED: c = ofColor(99); break;
+			case PixelState::NOT_LOADED: c = ofColor(99); break; //gray
 			case PixelState::LOADING: c = ofColor(255,255,0); break; //yellow
 			case PixelState::THREAD_FINISHED_LOADING: c = ofColor(0,255,0); break; //green
 			case PixelState::LOADED: c = ofColor(255,0,255); break; //magenta
 		}
+		
 		//ofDrawRectangle(pad * 0.5f + i * step, 0, sw, h);
 		m.addColor(c);
 		float x = pad * 0.5f + i * step + sw * 0.5f;
@@ -540,9 +547,10 @@ void ofxImageSequenceVideo::advanceFrameInternal(){
 	if(numThreads > 0){ //ASYNC
 		auto & curFrame = CURRENT_FRAME_ALT[currentFrame];
 		bool loaded = (curFrame.state == PixelState::THREAD_FINISHED_LOADING || curFrame.state == PixelState::LOADED);
-		if(loaded && curFrame.pixels.isAllocated()){ //unload old pixels
+		if(loaded && (curFrame.pixels.isAllocated() || curFrame.compressedPixels.size() > 0)){ //unload old pixels
 			curFrame.state = PixelState::NOT_LOADED;
 			curFrame.pixels.clear();
+			curFrame.compressedPixels = ofxDXT::Data(); //clear pixels data
 		}
 	}
 
@@ -594,19 +602,19 @@ void ofxImageSequenceVideo::loadPixelsNow(int newFrame, int oldFrame){
 			#if defined(USE_TURBO_JPEG)
 			string extension = ofToLower(ofFilePath::getFileExt(newFrameData.filePath));
 			if(extension == "jpeg" || extension == "jpg"){
-				TS_START_ACC("load jpg disk");
+				//TS_START_ACC("load jpg disk");
 				ofxTurboJpeg jpeg;
 				jpeg.load(currentPixels, newFrameData.filePath);
-				TS_STOP_ACC("load jpg disk");
+				//TS_STOP_ACC("load jpg disk");
 			}else{
-				TS_START_ACC("load pix disk");
+				//TS_START_ACC("load pix disk");
 				ofLoadImage(currentPixels, newFrameData.filePath);
-				TS_STOP_ACC("load pix disk");
+				//TS_STOP_ACC("load pix disk");
 			}
 			#else
-			TS_START_ACC("load pix disk");
+			//TS_START_ACC("load pix disk");
 			ofLoadImage(currentPixels, newFrameData.filePath); //load pixels from disk
-			TS_STOP_ACC("load pix disk");
+			//TS_STOP_ACC("load pix disk");
 			#endif
 		}else{
 			ofxDXT::loadFromDisk(newFrameData.filePath, currentPixelsCompressed);
@@ -688,6 +696,17 @@ ofPixels& ofxImageSequenceVideo::getPixels(){
 	}
 }
 
+
+bool ofxImageSequenceVideo::areAllTexturesPreloaded(){
+
+	if(!keepTexturesInGpuMem) return false;
+	else{
+		for(auto & f : frames[currentFrameSet]){
+			if(f.texState == TextureState::NOT_LOADED) return false;
+		}
+		return true;
+	}
+}
 
 ofTexture& ofxImageSequenceVideo::getTexture(){
 
