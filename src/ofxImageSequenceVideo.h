@@ -65,6 +65,8 @@ public:
 	//a frame from disk to find out
 	size_t getEstimatdVramUse();
 
+	static void getImageInfo(const std::string & filePath, int & width, int & height, int & numChannels, bool & imgOK);
+
 	void play();
 	void pause();
 

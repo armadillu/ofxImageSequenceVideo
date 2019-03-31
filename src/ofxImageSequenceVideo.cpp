@@ -24,7 +24,7 @@
 #include "../lib/stb/stb_image.h"
 
 
-void getImageInfo(const std::string & filePath, int & width, int & height, int & numChannels, bool & imgOK){
+void ofxImageSequenceVideo::getImageInfo(const std::string & filePath, int & width, int & height, int & numChannels, bool & imgOK){
 	std::string path = ofToDataPath(filePath, true);
 	int ret = stbi_info(path.c_str(), &width, &height, &numChannels);
 	imgOK = (ret != 0);
@@ -167,7 +167,7 @@ size_t ofxImageSequenceVideo::getEstimatdVramUse(){
 		if(!useDXTCompression){
 			int w, h, nChannels;
 			bool ok;
-			getImageInfo(CURRENT_FRAME_ALT[0].filePath, w, h, nChannels, ok);
+			ofxImageSequenceVideo::getImageInfo(CURRENT_FRAME_ALT[0].filePath, w, h, nChannels, ok);
 			if(ok){
 				return (size_t)numFrames * (size_t)w * (size_t)h * (size_t)nChannels;
 			}else{
@@ -182,7 +182,6 @@ size_t ofxImageSequenceVideo::getEstimatdVramUse(){
 				if (data.getCompressionType() == ofxDXT::DXT1) compressionFactor = 2; //dxt1 ratio is 8:1
 				else compressionFactor = 1; //DXT3 & 5 ratios 4:1
 				size_t bytes = (size_t)numFrames * (size_t)data.getWidth() * (size_t)data.getHeight() / compressionFactor;
-				data.clear();
 				return bytes;
 			}
 			ofLogError("ofxImageSequenceVideo") << "Can't getEstimatdVramUse(). cant load DXT image! " << CURRENT_FRAME_ALT[0].filePath;
