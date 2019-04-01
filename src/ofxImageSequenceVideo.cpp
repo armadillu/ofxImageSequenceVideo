@@ -109,7 +109,7 @@ bool ofxImageSequenceVideo::loadImageSequence(const string & path, float frameRa
 
 	vector<string> fileNames = ofxImageSequenceVideo::getImagesAtDirectory(path, useDXTCompression);
 
-	ofLogNotice("ofxImageSequenceVideo") << "loadImageSequence: \"" << path << "\"";
+	ofLogNotice("ofxImageSequenceVideo") << "loadImageSequence() \"" << path << "\"";
 
 	int num = fileNames.size();
 	if(num >= 2){
@@ -219,22 +219,22 @@ void ofxImageSequenceVideo::update(float dt){
 //					TS_SCOPE("load 2 GPU");
 
 					if(keepTexturesInGpuMem){ //load into frames vector
-						TS_START_ACC("load tex KEEP");
+						//TS_START_ACC("load tex KEEP");
 						if(!useDXTCompression){
 							curFrame.texture.loadData(curFrame.pixels);
 						}else{
 							ofxDXT::loadDataIntoTexture(curFrame.compressedPixels, curFrame.texture);
 						}
-						TS_STOP_ACC("load tex KEEP");
+						//TS_STOP_ACC("load tex KEEP");
 						curFrame.texState = TextureState::LOADED;
 					}else{ //load into reusable texture
-						TS_START_ACC("load tex ONE-OFF");
+						//TS_START_ACC("load tex ONE-OFF");
 						if(!useDXTCompression){
 							tex.loadData(curFrame.pixels);
 						}else{
 							ofxDXT::loadDataIntoTexture(curFrame.compressedPixels, tex);
 						}
-						TS_STOP_ACC("load tex ONE-OFF");
+						//TS_STOP_ACC("load tex ONE-OFF");
 					}
 				}
 			}
@@ -263,7 +263,10 @@ void ofxImageSequenceVideo::update(float dt){
 		int numLoaded = 0;
 		for(int i = 0; i < numBufferFrames; i++){
 			auto state = CURRENT_FRAME_ALT[(currentFrame + i)%numFrames].state;
-			if(state == PixelState::THREAD_FINISHED_LOADING || state == PixelState::LOADED) numLoaded++;
+			auto texState = CURRENT_FRAME_ALT[(currentFrame + i)%numFrames].texState;
+			if(state == PixelState::THREAD_FINISHED_LOADING || state == PixelState::LOADED || texState == TextureState::LOADED){
+				numLoaded++;
+			}
 		}
 		bufferFullness = ofLerp(bufferFullness,(numLoaded / float(numBufferFrames)), 0.1);
 
