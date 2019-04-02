@@ -141,7 +141,7 @@ bool ofxImageSequenceVideo::loadImageSequence(const string & path, float frameRa
 		return true;
 	}else{
 		loaded = false;
-		ofLogError("ofxImageSequenceVideo") << "can't loadImageSequence()! Not enought image files in \"" << path << "\"";
+		ofLogError("ofxImageSequenceVideo") << "can't loadImageSequence()! Not enough image files in \"" << path << "\"";
 		return false;
 	}
 }
