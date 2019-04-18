@@ -178,10 +178,15 @@ size_t ofxImageSequenceVideo::getEstimatdVramUse(){
 			ofxDXT::Data data;
 			bool ok = ofxDXT::loadFromDisk(CURRENT_FRAME_ALT[0].filePath, data);
 			if(ok){
-				size_t compressionFactor;
-				if (data.getCompressionType() == ofxDXT::DXT1) compressionFactor = 2; //dxt1 ratio is 8:1
-				else compressionFactor = 1; //DXT3 & 5 ratios 4:1
-				size_t bytes = (size_t)numFrames * (size_t)data.getWidth() * (size_t)data.getHeight() / compressionFactor;
+				size_t bytes;
+				if (data.getCompressionType() == ofxDXT::DXT1){
+					//dxt1 ratio is 6:1
+					bytes = (size_t)((size_t)numFrames * (size_t)data.getWidth() * (size_t)data.getHeight() * 4) / (size_t)6;
+				}else{
+					//DXT3 & 5 ratios 4:1
+					bytes = (size_t)numFrames * (size_t)data.getWidth() * (size_t)data.getHeight();
+				}
+
 				return bytes;
 			}
 			ofLogError("ofxImageSequenceVideo") << "Can't getEstimatdVramUse(). cant load DXT image! " << CURRENT_FRAME_ALT[0].filePath;
