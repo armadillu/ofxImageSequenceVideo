@@ -146,6 +146,15 @@ bool ofxImageSequenceVideo::loadImageSequence(const string & path, float frameRa
 	}
 }
 
+float ofxImageSequenceVideo::getMovieDuration(){
+
+	float ret = 0;
+	if(numFrames > 0){
+		ret = frameDuration * numFrames;
+	}
+	return ret;
+}
+
 size_t ofxImageSequenceVideo::getEstimatdVramUse(){
 
 	if(currentFrameSet < 0){
@@ -472,6 +481,8 @@ std::string ofxImageSequenceVideo::getStatus(){
 
 	string msg = numThreads == 0 ? "Mode: Immediate" : "Mode: Async";
 	msg += "\nFrame: " + ofToString(currentFrame) + "/" + ofToString(numFrames);
+
+	msg += "\nMovieDuration: " + secondsToHumanReadable(getMovieDuration(), 2);
 	if(numThreads > 0) msg += "\nNumTasks: " + ofToString(tasks.size()) + "/" + ofToString(numThreads);
 
 	if(numThreads > 0) msg += "\nBuffer: " + ofToString(100 * bufferFullness, 1) + "%";
@@ -739,6 +750,24 @@ ofTexture& ofxImageSequenceVideo::getTexture(){
 			return tex;
 		}
 	}
+}
+
+std::string ofxImageSequenceVideo::secondsToHumanReadable(float secs, int decimalPrecision){
+	std::string ret;
+	if (secs < 60.0f ){ //if in seconds
+		ret = ofToString(secs, decimalPrecision) + " seconds";
+	}else{
+		if (secs < 3600.0f){ //if in min range
+			ret = ofToString(secs / 60.0f, decimalPrecision) + " minutes";
+		}else{ //hours or days
+			if (secs < 86400.0f){ // hours
+				ret = ofToString(secs / 3600.0f, decimalPrecision) + " hours";
+			}else{ //days
+				ret = ofToString(secs / 86400.0f, decimalPrecision) + " days";
+			}
+		}
+	}
+	return ret;
 }
 
 

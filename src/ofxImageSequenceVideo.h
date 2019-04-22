@@ -80,6 +80,8 @@ public:
 	int getNumFrames();
 	float getPosition(); //as percentage[0..1]
 
+	float getMovieDuration(); //in seconds
+
 	bool arePixelsNew(); //since last update
 
 	void eraseAllPixelCache(); //delete all pixel cache
@@ -191,6 +193,9 @@ protected:
 	float bufferFullness = 0.0f; //just to smooth out buffer len 
 
 	void loadPixelsNow(int newFrame, int oldFrame);
+
+	//utils
+	std::string secondsToHumanReadable(float secs, int decimalPrecision);
 	
 };
 
