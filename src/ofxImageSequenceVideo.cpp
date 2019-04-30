@@ -485,7 +485,7 @@ std::string ofxImageSequenceVideo::getStatus(){
 	msg += "\nMovieDuration: " + secondsToHumanReadable(getMovieDuration(), 2);
 	if(numThreads > 0) msg += "\nNumTasks: " + ofToString(tasks.size()) + "/" + ofToString(numThreads);
 
-	if(numThreads > 0) msg += "\nBuffer: " + ofToString(100 * bufferFullness, 1) + "%";
+	if(numThreads > 0) msg += "\nBuffer: " + ofToString(100 * bufferFullness, 1) + "% [" + ofToString(numBufferFrames) + "]";
 	msg += "\nLoadTimeAvg: " + ofToString(loadTimeAvg, 2) + "ms";
 	msg += "\nFrameRate: " + ofToString(1.0 / frameDuration, 2) + "fps";
 	auto & texture = getTexture();
