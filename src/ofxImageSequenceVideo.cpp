@@ -603,6 +603,11 @@ void ofxImageSequenceVideo::pause(){
 	playback = false;
 }
 
+bool ofxImageSequenceVideo::isPlaying()
+{
+    return playback;
+}
+
 void ofxImageSequenceVideo::loadPixelsNow(int newFrame, int oldFrame){
 
 	if(newFrame < 0 || newFrame >= numFrames){

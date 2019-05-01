@@ -69,6 +69,8 @@ public:
 
 	void play();
 	void pause();
+    
+    bool isPlaying(); 
 
 	void advanceOneFrame();
 	void seekToFrame(int frame);
