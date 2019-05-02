@@ -69,6 +69,8 @@ public:
 
 	void play();
 	void pause();
+    
+    bool isPlaying(); 
 
 	void setPlaybackSpeed(float speed){playbackSpeed = speed;}; //1.0 means normal speed. don't go negative or weird things will happen!
 	float getPlaybackSpeed(){return playbackSpeed;}
