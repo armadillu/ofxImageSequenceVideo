@@ -215,7 +215,7 @@ void ofxImageSequenceVideo::update(float dt){
 
 	if(playback){
 		if(currentFrame < 0) currentFrame = 0;
-		frameOnScreenTime += dt;
+		frameOnScreenTime += dt * playbackSpeed;
 	}
 
 	if(numThreads > 0){ //async mode - spawn threads to load frames in the future and wait for them to be done / sync
@@ -481,6 +481,7 @@ std::string ofxImageSequenceVideo::getStatus(){
 
 	string msg = numThreads == 0 ? "Mode: Immediate" : "Mode: Async";
 	msg += "\nFrame: " + ofToString(currentFrame) + "/" + ofToString(numFrames);
+	msg += "\nPlaybackSpeed: " + ofToString(playbackSpeed);
 
 	msg += "\nMovieDuration: " + secondsToHumanReadable(getMovieDuration(), 2);
 	if(numThreads > 0) msg += "\nNumTasks: " + ofToString(tasks.size()) + "/" + ofToString(numThreads);

@@ -70,6 +70,9 @@ public:
 	void play();
 	void pause();
 
+	void setPlaybackSpeed(float speed){playbackSpeed = speed;}; //1.0 means normal speed. don't go negative or weird things will happen!
+	float getPlaybackSpeed(){return playbackSpeed;}
+
 	void advanceOneFrame();
 	void seekToFrame(int frame);
 
@@ -157,6 +160,7 @@ protected:
 	bool texNeedsLoad = false;
 
 	bool playback = false;
+	float playbackSpeed = 1.0;
 	bool shouldLoop = true;
 
 	vector<FrameInfo> frames[maxFramePingPongDataStructs];
