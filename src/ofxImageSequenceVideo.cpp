@@ -325,6 +325,7 @@ void ofxImageSequenceVideo::handleLooping(bool triggerEvents){
 			currentFrame = 0;
 			if(triggerEvents){
 				EventInfo info;
+				info.who = this;
 				ofNotifyEvent(eventMovieLooped, info, this);
 			}
 		}
@@ -577,6 +578,7 @@ void ofxImageSequenceVideo::advanceFrameInternal(){
 
 	if(!shouldLoop && currentFrame == numFrames -1){
 		EventInfo info;
+		info.who = this;
 		ofNotifyEvent(eventMovieEnded, info, this);
 		playback = false; //last frame, stop playback
 	}

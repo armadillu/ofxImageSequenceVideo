@@ -38,7 +38,7 @@ public:
 
 	//TODO - don't reuse objects, it will probably fail to load a second img sequence so only load once
 	//otherwise things might go wrong
-	bool loadImageSequence(const string & path, float frameRate);
+	bool loadImageSequence(const std::string & path, float frameRate);
 
 	//if TRUE, it effectivelly loads the whole img sequence into GPU (during the 1st playback)
 	//during the first playback pass, all frames will be loaded from disk, but on the following
@@ -87,6 +87,10 @@ public:
 
 	float getMovieDuration(); //in seconds
 
+	bool isLoaded(){return loaded;}
+	std::string getMoviePath(){return imgSequencePath;}
+	float getMovieFramerate(){return 1.0f / frameDuration;}
+
 	bool arePixelsNew(); //since last update
 
 	void eraseAllPixelCache(); //delete all pixel cache
@@ -102,9 +106,7 @@ public:
 	std::string getStatus();
 
 	struct EventInfo{
-		ofVec2f movieTexSize;
-		string movieFile;
-		float frameScreenTime; // 1/framerate
+		ofxImageSequenceVideo * who = nullptr;
 	};
 
 	ofFastEvent<EventInfo> eventMovieLooped;
