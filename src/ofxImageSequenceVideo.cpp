@@ -578,6 +578,7 @@ void ofxImageSequenceVideo::advanceFrameInternal(){
 	if(!shouldLoop && currentFrame == numFrames -1){
 		EventInfo info;
 		ofNotifyEvent(eventMovieEnded, info, this);
+		playback = false; //last frame, stop playback
 	}
 }
 
@@ -604,8 +605,7 @@ void ofxImageSequenceVideo::pause(){
 	playback = false;
 }
 
-bool ofxImageSequenceVideo::isPlaying()
-{
+bool ofxImageSequenceVideo::isPlaying(){
     return playback;
 }
 

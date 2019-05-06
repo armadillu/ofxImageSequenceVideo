@@ -19,7 +19,7 @@ class ofxImageSequenceVideo{
 
 public:
 
-	static const int maxFramePingPongDataStructs = 3;
+	static const int maxFramePingPongDataStructs = 5;
 
 	ofxImageSequenceVideo();
 	~ofxImageSequenceVideo();
