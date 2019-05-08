@@ -84,6 +84,7 @@ public:
 	int getCurrentFrame();
 	int getNumFrames();
 	float getPosition(); //as percentage[0..1], -1 if no video is loaded
+	float getPositionSeconds();
 
 	float getMovieDuration(); //in seconds
 

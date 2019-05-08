@@ -674,6 +674,11 @@ float ofxImageSequenceVideo::getPosition(){
 	return (float(currentFrame) / (numFrames-1));
 }
 
+float ofxImageSequenceVideo::getPositionSeconds(){
+	if (!loaded) return -1;
+	return getPosition() * getMovieDuration();
+}
+
 
 int ofxImageSequenceVideo::getNumFrames(){
 	if(!loaded) return -1;
