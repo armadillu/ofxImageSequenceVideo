@@ -664,6 +664,12 @@ void ofxImageSequenceVideo::setPosition(float normalizedPos){
 }
 
 
+void ofxImageSequenceVideo::setPositionSeconds(float seconds){
+	if(!loaded) return;
+	setPosition(seconds / getMovieDuration());
+}
+
+
 int ofxImageSequenceVideo::getCurrentFrame(){
 	if(!loaded) return -1;
 	return currentFrame;

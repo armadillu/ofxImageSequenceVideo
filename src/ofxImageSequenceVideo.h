@@ -79,6 +79,7 @@ public:
 	void seekToFrame(int frame);
 
 	void setPosition(float normalizedPos); //[0..1]
+	void setPositionSeconds(float seconds);
 	void setLoop(bool loop); //does the sequence loop when it reaches the end during playback?
 
 	int getCurrentFrame();
