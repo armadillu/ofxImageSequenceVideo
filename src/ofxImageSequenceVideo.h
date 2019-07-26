@@ -33,7 +33,7 @@ public:
 	//
 	//useDXTcompression == TRUE >> assumes all your images are in a .dxt format on disk;
 	//look into ofxDXT to see how to compress them
-	void setup(int numThreads, int bufferSize, bool useDXTcompression);
+    void setup(int numThreads, int bufferSize, bool useDXTcompression, bool _reverse = true);
 	//NOTE - dont change those on the fly, to be setup once before you load the IMG sequence
 
 	//TODO - don't reuse objects, it will probably fail to load a second img sequence so only load once
@@ -199,5 +199,7 @@ protected:
 	//utils
 	std::string secondsToHumanReadable(float secs, int decimalPrecision);
 	
+    bool reverse = false; // set to true if we need to reverse the sequence
+    bool reversing = false; // state for playing in reverse or sequentially
 };
 
