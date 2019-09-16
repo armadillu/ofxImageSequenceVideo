@@ -482,7 +482,7 @@ std::string ofxImageSequenceVideo::getStatus(){
 
 	string msg = numThreads == 0 ? "Mode: Immediate" : "Mode: Async";
 	msg += "\nFrame: " + ofToString(currentFrame) + "/" + ofToString(numFrames);
-	msg += "\nPlaybackSpeed: " + ofToString(playbackSpeed);
+	msg += "\nPlaybackSpeed: " + ofToString(100 * playbackSpeed) + "%";
 
 	msg += "\nMovieDuration: " + secondsToHumanReadable(getMovieDuration(), 2);
 	if(numThreads > 0) msg += "\nNumTasks: " + ofToString(tasks.size()) + "/" + ofToString(numThreads);
