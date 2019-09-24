@@ -20,8 +20,10 @@
 
 #define CURRENT_FRAME_ALT frames[currentFrameSet]
 
-#define STB_IMAGE_IMPLEMENTATION
-#include "../lib/stb/stb_image.h"
+//commenting this out to avoid duploicate symobl errors with other addons that use stb_image.
+//if no other addon is including stb_image, you may need to add this to your project to include the stb_image implementation.
+//#define STB_IMAGE_IMPLEMENTATION
+//#include "../lib/stb/stb_image.h"
 
 
 void ofxImageSequenceVideo::getImageInfo(const std::string & filePath, int & width, int & height, int & numChannels, bool & imgOK){
