@@ -59,11 +59,12 @@ ofxImageSequenceVideo::~ofxImageSequenceVideo(){
 }
 
 
-void ofxImageSequenceVideo::setup(int numThreads, int bufferSize, bool useDXTcompression){
+void ofxImageSequenceVideo::setup(int numThreads, int bufferSize, bool useDXTcompression, bool _reverse){
 	this->numBufferFrames = bufferSize;
 	this->numThreads = numThreads;
 	this->keepTexturesInGpuMem = false;
 	this->useDXTCompression = useDXTcompression;
+    this->reverse = _reverse;
 }
 
 
@@ -216,8 +217,12 @@ void ofxImageSequenceVideo::update(float dt){
 	newData = false;
 
 	if(playback){
-		if(currentFrame < 0) currentFrame = 0;
-		frameOnScreenTime += dt * playbackSpeed;
+        if(currentFrame < 0)
+        {
+            currentFrame = 0;
+            reversing = false;
+        }
+		frameOnScreenTime += dt;
 	}
 
 	if(numThreads > 0){ //async mode - spawn threads to load frames in the future and wait for them to be done / sync
@@ -324,7 +329,18 @@ void ofxImageSequenceVideo::handleLooping(bool triggerEvents){
 
 	if(shouldLoop){ //loop movie
 		if(currentFrame >= numFrames){
-			currentFrame = 0;
+			
+            if(reverse)
+            {
+                currentFrame = numFrames - 1;
+                reversing = true;
+            }
+            else
+            {
+                currentFrame = 0;
+            }
+            
+            
 			if(triggerEvents){
 				EventInfo info;
 				info.who = this;
@@ -363,6 +379,12 @@ void ofxImageSequenceVideo::handleScreenTimeCounters(float dt){
 }
 
 void ofxImageSequenceVideo::handleThreadSpawn(){
+    
+    if(playback & currentFrame < 0){
+        currentFrame = 0;
+        reversing = false;
+    }
+    
 	int numToSpawn = numThreads - tasks.size();
 	int frameToLoad = currentFrame;
 	int furthestFrame = currentFrame + numBufferFrames;
@@ -576,7 +598,15 @@ void ofxImageSequenceVideo::advanceFrameInternal(){
 		}
 	}
 
-	currentFrame++;
+    if(reversing)
+    {
+        currentFrame--;
+    }
+    else
+    {
+        currentFrame++;
+    }
+	
 
 	if(!shouldLoop && currentFrame == numFrames -1){
 		EventInfo info;
