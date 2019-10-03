@@ -222,7 +222,7 @@ void ofxImageSequenceVideo::update(float dt){
             currentFrame = 0;
             reversing = false;
         }
-		frameOnScreenTime += dt;
+		frameOnScreenTime += dt* playbackSpeed;
 	}
 
 	if(numThreads > 0){ //async mode - spawn threads to load frames in the future and wait for them to be done / sync
