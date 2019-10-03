@@ -68,7 +68,6 @@ public:
 	static void getImageInfo(const std::string & filePath, int & width, int & height, int & numChannels, bool & imgOK);
 
 	void play();
-    void playFromBeginning();
 	void pause();
     
     bool isPlaying(); 

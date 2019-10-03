@@ -634,13 +634,6 @@ void ofxImageSequenceVideo::play(){
 	playback = true;
 }
 
-void ofxImageSequenceVideo::playFromBeginning()
-{
-    if(!loaded) return;
-    playback = true;
-    currentFrame = 0;
-}
-
 
 void ofxImageSequenceVideo::pause(){
 	if(!loaded) return;
