@@ -522,6 +522,34 @@ std::string ofxImageSequenceVideo::getStatus(){
 	return msg;
 }
 
+
+std::string ofxImageSequenceVideo::getBufferStatus(){
+
+	string msg = "[";
+	if(numThreads > 0 ){  //buffer only for threaded mode
+
+		int numAhead = numBufferFrames;
+		//see if buffer hits the end of the clip - we need to wrap then
+		if(currentFrame + numBufferFrames > numFrames) numAhead = numFrames - currentFrame;
+		vector<int> framesToTest;
+		for(int i = 0; i < numBufferFrames; i++){
+			framesToTest.push_back((currentFrame + i) % numFrames);
+		}
+
+		for(auto & frameNum : framesToTest){
+			switch (CURRENT_FRAME_ALT[frameNum].state) {
+				case PixelState::NOT_LOADED: 					msg += "0"; break;
+				case PixelState::LOADING: 						msg += "!"; break;
+				case PixelState::THREAD_FINISHED_LOADING: 		msg += "#"; break;
+				case PixelState::LOADED: 						msg += "#"; break;
+			}
+		}
+	}
+	msg += "]";
+	return msg;
+}
+
+
 void ofxImageSequenceVideo::drawDebug(float x, float y, float w){
 	if(!loaded) return;
 

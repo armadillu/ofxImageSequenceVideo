@@ -106,6 +106,7 @@ public:
 
 	//get img sequence stats as a string
 	std::string getStatus();
+	std::string getBufferStatus();
 
 	struct EventInfo{
 		ofxImageSequenceVideo * who = nullptr;
