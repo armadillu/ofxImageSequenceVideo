@@ -526,7 +526,7 @@ std::string ofxImageSequenceVideo::getStatus(){
 std::string ofxImageSequenceVideo::getBufferStatus(){
 
 	string msg = "[";
-	if(numThreads > 0 ){  //buffer only for threaded mode
+	if(numThreads > 0 && numFrames > 0){  //buffer only for threaded mode
 
 		int numAhead = numBufferFrames;
 		//see if buffer hits the end of the clip - we need to wrap then
