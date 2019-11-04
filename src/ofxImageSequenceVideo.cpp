@@ -509,7 +509,7 @@ std::string ofxImageSequenceVideo::getStatus(){
 	msg += "\nPlaybackSpeed: " + ofToString(100 * playbackSpeed) + "%";
 
 	msg += "\nMovieDuration: " + secondsToHumanReadable(getMovieDuration(), 2);
-	if(numThreads > 0) msg += "\nNumTasks: " + ofToString(tasks.size()) + "/" + ofToString(numThreads);
+	if(numThreads > 0) msg += string("\nNumTasks: ") + getNumTasks();
 
 	if(numThreads > 0) msg += "\nBuffer: " + ofToString(100 * bufferFullness, 1) + "% [" + ofToString(numBufferFrames) + "]";
 	msg += "\nLoadTimeAvg: " + ofToString(loadTimeAvg, 2) + "ms";
@@ -523,25 +523,50 @@ std::string ofxImageSequenceVideo::getStatus(){
 }
 
 
-std::string ofxImageSequenceVideo::getBufferStatus(){
+std::string ofxImageSequenceVideo::getBufferStatus(int extendBeyondBuffer){
 
 	string msg = "[";
 	if(numThreads > 0 && numFrames > 0){  //buffer only for threaded mode
 
-		int numAhead = numBufferFrames;
+		int numAhead = numBufferFrames + extendBeyondBuffer;
 		//see if buffer hits the end of the clip - we need to wrap then
-		if(currentFrame + numBufferFrames > numFrames) numAhead = numFrames - currentFrame;
+		if(currentFrame + numBufferFrames > numFrames) numAhead = numFrames - currentFrame + extendBeyondBuffer;
 		vector<int> framesToTest;
-		for(int i = 0; i < numBufferFrames; i++){
+		for(int i = 0; i < numBufferFrames + extendBeyondBuffer; i++){
 			framesToTest.push_back((currentFrame + i) % numFrames);
 		}
 
 		for(auto & frameNum : framesToTest){
 			switch (CURRENT_FRAME_ALT[frameNum].state) {
 				case PixelState::NOT_LOADED: 					msg += "0"; break;
-				case PixelState::LOADING: 						msg += "!"; break;
-				case PixelState::THREAD_FINISHED_LOADING: 		msg += "#"; break;
-				case PixelState::LOADED: 						msg += "#"; break;
+				case PixelState::LOADING: 						msg += "-"; break;
+				case PixelState::THREAD_FINISHED_LOADING: 		msg += "1"; break;
+				case PixelState::LOADED: 						msg += "1"; break;
+			}
+		}
+	}
+	msg += "]";
+	return msg;
+}
+
+
+std::string ofxImageSequenceVideo::getGpuBufferStatus(int extendBeyondBuffer){
+
+	string msg = "[";
+	if(numThreads > 0 && numFrames > 0){  //buffer only for threaded mode
+
+		int numAhead = numBufferFrames + extendBeyondBuffer;
+		//see if buffer hits the end of the clip - we need to wrap then
+		if(currentFrame + numBufferFrames > numFrames) numAhead = numFrames - currentFrame + extendBeyondBuffer;
+		vector<int> framesToTest;
+		for(int i = 0; i < numBufferFrames + extendBeyondBuffer; i++){
+			framesToTest.push_back((currentFrame + i) % numFrames);
+		}
+
+		for(auto & frameNum : framesToTest){
+			switch (CURRENT_FRAME_ALT[frameNum].texState) {
+				case TextureState::NOT_LOADED: 					msg += "0"; break;
+				case TextureState::LOADED: 						msg += "1"; break;
 			}
 		}
 	}
