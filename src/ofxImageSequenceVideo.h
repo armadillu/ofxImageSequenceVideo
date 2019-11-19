@@ -57,6 +57,8 @@ public:
 
 	//set the img sequence framerate (playback speed)
 	void setPlaybackFramerate(float framerate);
+	float getPlaybackFramerate(){return 1.0f / frameDuration;}
+	int getNumBufferFrames();
 
 	void update(float dt);
 

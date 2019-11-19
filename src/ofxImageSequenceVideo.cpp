@@ -785,6 +785,13 @@ int ofxImageSequenceVideo::getNumFrames(){
 	return numFrames;
 }
 
+int ofxImageSequenceVideo::getNumBufferFrames(){
+	if(!loaded) return -1;
+	if(numThreads == 0) return 0;
+	return numBufferFrames;
+}
+
+
 
 bool ofxImageSequenceVideo::arePixelsNew(){
 	if(!loaded) return false;
