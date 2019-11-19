@@ -112,7 +112,7 @@ bool ofxImageSequenceVideo::loadImageSequence(const string & path, float frameRa
 
 	vector<string> fileNames = ofxImageSequenceVideo::getImagesAtDirectory(path, useDXTCompression);
 
-	ofLogNotice("ofxImageSequenceVideo") << "loadImageSequence() \"" << path << "\"";
+	ofLogVerbose("ofxImageSequenceVideo") << "loadImageSequence() \"" << path << "\"";
 
 	int num = fileNames.size();
 	if(num >= 2){
