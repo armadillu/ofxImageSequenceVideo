@@ -20,10 +20,18 @@
 
 #define CURRENT_FRAME_ALT frames[currentFrameSet]
 
-//commenting this out to avoid duploicate symobl errors with other addons that use stb_image.
-//if no other addon is including stb_image, you may need to add this to your project to include the stb_image implementation.
-//#define STB_IMAGE_IMPLEMENTATION
-//#include "../lib/stb/stb_image.h"
+// In order to avoid duplicate symbol errors with other addons that use stb_image,
+// stb image implementations will not be automatically included. In order to include
+// this implementation, add the preprocessor macro:
+//      OFX_IMAGE_SEQUENCE_VIDEO__STB_IMAGE_IMPLEMENTATION
+// in your project properties file.
+// Note: stb_image.h includes both declarations and implementations, the implementation
+// included only if the macro STB_IMAGE_IMPLEMENTATION is defined.
+#ifdef OFX_IMAGE_SEQUENCE_VIDEO__STB_IMAGE_IMPLEMENTATION
+#define STB_IMAGE_IMPLEMENTATION
+#include "../lib/stb/stb_image.h"
+#undef STB_IMAGE_IMPLEMENTATION
+#endif
 
 
 void ofxImageSequenceVideo::getImageInfo(const std::string & filePath, int & width, int & height, int & numChannels, bool & imgOK){
@@ -222,7 +230,7 @@ void ofxImageSequenceVideo::update(float dt){
             currentFrame = 0;
             reversing = false;
         }
-		frameOnScreenTime += dt;
+		frameOnScreenTime += dt* playbackSpeed;
 	}
 
 	if(numThreads > 0){ //async mode - spawn threads to load frames in the future and wait for them to be done / sync
@@ -509,7 +517,7 @@ std::string ofxImageSequenceVideo::getStatus(){
 	msg += "\nPlaybackSpeed: " + ofToString(100 * playbackSpeed) + "%";
 
 	msg += "\nMovieDuration: " + secondsToHumanReadable(getMovieDuration(), 2);
-	if(numThreads > 0) msg += "\nNumTasks: " + ofToString(tasks.size()) + "/" + ofToString(numThreads);
+	if(numThreads > 0) msg += string("\nNumTasks: ") + getNumTasks();
 
 	if(numThreads > 0) msg += "\nBuffer: " + ofToString(100 * bufferFullness, 1) + "% [" + ofToString(numBufferFrames) + "]";
 	msg += "\nLoadTimeAvg: " + ofToString(loadTimeAvg, 2) + "ms";
@@ -521,6 +529,59 @@ std::string ofxImageSequenceVideo::getStatus(){
 
 	return msg;
 }
+
+
+std::string ofxImageSequenceVideo::getBufferStatus(int extendBeyondBuffer){
+
+	string msg = "[";
+	if(numThreads > 0 && numFrames > 0){  //buffer only for threaded mode
+
+		int numAhead = numBufferFrames + extendBeyondBuffer;
+		//see if buffer hits the end of the clip - we need to wrap then
+		if(currentFrame + numBufferFrames > numFrames) numAhead = numFrames - currentFrame + extendBeyondBuffer;
+		vector<int> framesToTest;
+		for(int i = 0; i < numBufferFrames + extendBeyondBuffer; i++){
+			framesToTest.push_back((currentFrame + i) % numFrames);
+		}
+
+		for(auto & frameNum : framesToTest){
+			switch (CURRENT_FRAME_ALT[frameNum].state) {
+				case PixelState::NOT_LOADED: 					msg += "0"; break;
+				case PixelState::LOADING: 						msg += "-"; break;
+				case PixelState::THREAD_FINISHED_LOADING: 		msg += "1"; break;
+				case PixelState::LOADED: 						msg += "1"; break;
+			}
+		}
+	}
+	msg += "]";
+	return msg;
+}
+
+
+std::string ofxImageSequenceVideo::getGpuBufferStatus(int extendBeyondBuffer){
+
+	string msg = "[";
+	if(numThreads > 0 && numFrames > 0){  //buffer only for threaded mode
+
+		int numAhead = numBufferFrames + extendBeyondBuffer;
+		//see if buffer hits the end of the clip - we need to wrap then
+		if(currentFrame + numBufferFrames > numFrames) numAhead = numFrames - currentFrame + extendBeyondBuffer;
+		vector<int> framesToTest;
+		for(int i = 0; i < numBufferFrames + extendBeyondBuffer; i++){
+			framesToTest.push_back((currentFrame + i) % numFrames);
+		}
+
+		for(auto & frameNum : framesToTest){
+			switch (CURRENT_FRAME_ALT[frameNum].texState) {
+				case TextureState::NOT_LOADED: 					msg += "0"; break;
+				case TextureState::LOADED: 						msg += "1"; break;
+			}
+		}
+	}
+	msg += "]";
+	return msg;
+}
+
 
 void ofxImageSequenceVideo::drawDebug(float x, float y, float w){
 	if(!loaded) return;
@@ -611,8 +672,9 @@ void ofxImageSequenceVideo::advanceFrameInternal(){
 	if(!shouldLoop && currentFrame == numFrames -1){
 		EventInfo info;
 		info.who = this;
+        playback = false;
 		ofNotifyEvent(eventMovieEnded, info, this);
-		playback = false; //last frame, stop playback
+        //last frame, stop playback
 	}
 }
 
@@ -722,6 +784,13 @@ int ofxImageSequenceVideo::getNumFrames(){
 	if(!loaded) return -1;
 	return numFrames;
 }
+
+int ofxImageSequenceVideo::getNumBufferFrames(){
+	if(!loaded) return -1;
+	if(numThreads == 0) return 0;
+	return numBufferFrames;
+}
+
 
 
 bool ofxImageSequenceVideo::arePixelsNew(){

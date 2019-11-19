@@ -57,6 +57,8 @@ public:
 
 	//set the img sequence framerate (playback speed)
 	void setPlaybackFramerate(float framerate);
+	float getPlaybackFramerate(){return 1.0f / frameDuration;}
+	int getNumBufferFrames();
 
 	void update(float dt);
 
@@ -104,8 +106,14 @@ public:
 	//draws a timeline with all frames and their status, the playhead and the buffer size
 	void drawDebug(float x, float y, float w);
 
-	//get img sequence stats as a string
+	//get img sequence stats
 	std::string getStatus();
+	std::string getBufferStatus(int extendBeyondBuffer = 0);
+	std::string getGpuBufferStatus(int extendBeyondBuffer = 0);
+	std::string getNumTasks(){ return ofToString(tasks.size()) + "/" + ofToString(numThreads); }
+	float getBufferFullness(){ return bufferFullness;}
+	float getLoadTimeAvg(){ return loadTimeAvg; } //avg time to load a single frame from disk to pixels, in ms
+
 
 	struct EventInfo{
 		ofxImageSequenceVideo * who = nullptr;
