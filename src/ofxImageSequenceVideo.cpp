@@ -403,7 +403,7 @@ void ofxImageSequenceVideo::handleScreenTimeCounters(float dt){
 
 void ofxImageSequenceVideo::handleThreadSpawn(){
     
-    if(playback & currentFrame < 0){
+    if(playback && currentFrame < 0){
         currentFrame = 0;
         reversing = false;
     }
