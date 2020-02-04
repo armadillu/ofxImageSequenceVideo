@@ -771,7 +771,8 @@ int ofxImageSequenceVideo::getCurrentFrame(){
 
 float ofxImageSequenceVideo::getPosition(){
 	if(!loaded) return -1;
-	return (float(currentFrame) / (numFrames-1));
+	float pct = (frameOnScreenTime / frameDuration); //pct into the next frame
+	return (float(currentFrame + pct) / (numFrames-1));
 }
 
 float ofxImageSequenceVideo::getPositionSeconds(){
