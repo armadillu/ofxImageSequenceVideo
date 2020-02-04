@@ -33,6 +33,12 @@
 #undef STB_IMAGE_IMPLEMENTATION
 #endif
 
+char asciitolower(char in) {
+	if (in <= 'Z' && in >= 'A')
+		return in - ('Z' - 'z');
+	return in;
+}
+
 
 void ofxImageSequenceVideo::getImageInfo(const std::string & filePath, int & width, int & height, int & numChannels, bool & imgOK){
 	std::string path = ofToDataPath(filePath, true);
@@ -432,7 +438,8 @@ ofxImageSequenceVideo::LoadResults ofxImageSequenceVideo::loadFrameThread(int fr
 	FrameInfo & curFrame = CURRENT_FRAME_ALT[frame];
 	if(!useDXTCompression){
 		#if defined(USE_TURBO_JPEG)
-		string extension = ofToLower(ofFilePath::getFileExt(curFrame.filePath));
+		string extension = ofFilePath::getFileExt(curFrame.filePath);
+		std::transform(extension.begin(), extension.end(), extension.begin(), asciitolower);
 		if(extension == "jpeg" || extension == "jpg"){
 			ofxTurboJpeg jpeg;
 			jpeg.load(curFrame.pixels, curFrame.filePath);
@@ -720,7 +727,8 @@ void ofxImageSequenceVideo::loadPixelsNow(int newFrame, int oldFrame){
 		auto & newFrameData = CURRENT_FRAME_ALT[newFrame];
 		if(!useDXTCompression){
 			#if defined(USE_TURBO_JPEG)
-			string extension = ofToLower(ofFilePath::getFileExt(newFrameData.filePath));
+			string extension = ofFilePath::getFileExt(newFrameData.filePath);
+			std::transform(extension.begin(), extension.end(), extension.begin(), asciitolower);
 			if(extension == "jpeg" || extension == "jpg"){
 				//TS_START_ACC("load jpg disk");
 				ofxTurboJpeg jpeg;
