@@ -236,7 +236,17 @@ void ofxImageSequenceVideo::update(float dt){
             currentFrame = 0;
             reversing = false;
         }
-		frameOnScreenTime += dt* playbackSpeed;
+		frameOnScreenTime += dt * playbackSpeed;
+	}
+
+	//calc what frame to jump to (if any)
+	int numFramesToAdvance = 0;
+	if(frameOnScreenTime < 0.0f){
+		numFramesToAdvance = 1;
+	}else{
+		if(frameOnScreenTime >= frameDuration){
+			numFramesToAdvance = int(frameOnScreenTime / frameDuration);
+		}
 	}
 
 	if(numThreads > 0){ //async mode - spawn threads to load frames in the future and wait for them to be done / sync
@@ -279,15 +289,16 @@ void ofxImageSequenceVideo::update(float dt){
 
 		PixelState state = CURRENT_FRAME_ALT[currentFrame].state;
 
-		bool timeToAdvanceFrame = (frameOnScreenTime >= frameDuration || frameOnScreenTime < 0.0f);
 		bool pixelsReady = (state == PixelState::THREAD_FINISHED_LOADING|| state == PixelState::LOADED);
 		bool loop = (shouldLoop || (!shouldLoop && (currentFrame <= (numFrames - 1))));
 		bool isTextureReady = CURRENT_FRAME_ALT[currentFrame].texState == TextureState::LOADED;
 
 		//note we hold playback until pixels are ready (instead of dropping frames - otherwise things get very complicated)
-		if(playback && timeToAdvanceFrame && loop && (pixelsReady || isTextureReady)){
-			handleScreenTimeCounters(dt);
-			advanceFrameInternal();
+		if(playback && (numFramesToAdvance > 0) && loop && (pixelsReady || isTextureReady)){
+			for(int i = 0; i < numFramesToAdvance; i++){
+				handleScreenTimeCounters(dt);
+				advanceFrameInternal();
+			}
 		}
 
 		handleLooping(true);
@@ -310,10 +321,14 @@ void ofxImageSequenceVideo::update(float dt){
 		if(playback && (frameOnScreenTime >= frameDuration || frameOnScreenTime < 0.0f) &&
 		   (shouldLoop || (!shouldLoop && (currentFrame <= (numFrames - 1))))
 		   ){
-			handleScreenTimeCounters(dt);
+
 			int oldFrame = currentFrame;
-			advanceFrameInternal();
-			handleLooping(true);
+			for(int i = 0; i < numFramesToAdvance; i++){
+				handleScreenTimeCounters(dt);
+				advanceFrameInternal();
+				handleLooping(true);
+			}
+
 			if(oldFrame != currentFrame){ //data is not new if we are not looping and we are stuck in the last frame
 				newData = true;
 				loadPixelsNow(currentFrame, oldFrame);
