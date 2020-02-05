@@ -144,8 +144,9 @@ protected:
 		string filePath;
 		ofPixels pixels;
 		ofxDXT::Data compressedPixels;
-		PixelState state = PixelState::NOT_LOADED;
+		PixelState pixState = PixelState::NOT_LOADED;
 		float loadTime = 0; //ms
+		bool shouldDisregardWhenLoaded = false;
 
 		TextureState texState = TextureState::NOT_LOADED;
 		ofTexture texture; 	//only to be kept around when we are trying to
@@ -193,6 +194,7 @@ protected:
 		int frame;
 		float elapsedTime;
 		float filesizeKb;
+		bool shouldBeDisregaded = false;
 	};
 
 	float loadTimeAvg = 0.0f;
