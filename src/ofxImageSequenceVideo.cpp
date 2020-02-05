@@ -405,7 +405,7 @@ void ofxImageSequenceVideo::handleThreadCleanup(){
 				curFrame.compressedPixels = ofxDXT::Data();
 				curFrame.pixState = PixelState::NOT_LOADED;
 				curFrame.shouldDisregardWhenLoaded = false;
-				ofLogWarning() << "thread cleanup " << results.frame;
+				//ofLogWarning() << "thread cleanup " << results.frame;
 			}
 			//ofLogNotice("ofxImageSequenceVideo") << ofGetFrameNum() << " - frame loaded! " << frame;
 			tasks.erase(tasks.begin() + i);
