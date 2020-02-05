@@ -541,6 +541,7 @@ std::string ofxImageSequenceVideo::getStatus(){
 	string msg = numThreads == 0 ? "Mode: Immediate" : "Mode: Async";
 	msg += "\nFrame: " + ofToString(currentFrame) + "/" + ofToString(numFrames);
 	msg += "\nTime: " + ofToString(getPositionSeconds(), 2) + " sec";
+	msg += "\nFrameScreenTime: " + ofToString(frameOnScreenTime, 4) + " sec";
 	msg += "\nPlaybackSpeed: " + ofToString(100 * playbackSpeed,1) + "%";
 
 	msg += "\nMovieDuration: " + secondsToHumanReadable(getMovieDuration(), 2);
@@ -799,7 +800,8 @@ int ofxImageSequenceVideo::getCurrentFrame(){
 
 float ofxImageSequenceVideo::getPosition(){
 	if(!loaded) return -1;
-	float pct = (frameOnScreenTime / frameDuration); //pct into the next frame
+	float pct = ofClamp(frameOnScreenTime / frameDuration, 0.0f, 1.0f); //pct into the next frame
+	//ofLogNotice() << "frameOnScreenTime: " << frameOnScreenTime << " frameDuration: " << frameDuration << "  pct: " << pct;
 	return (float(currentFrame + pct) / (numFrames-1));
 }
 
