@@ -377,6 +377,13 @@ void ofxImageSequenceVideo::handleThreadCleanup(){
 		if(status == std::future_status::ready){
 			LoadResults results = tasks[i].get();
 			loadTimeAvg = ofLerp(loadTimeAvg, results.elapsedTime, 0.1);
+			if(reportFileSize){
+				if (fileSizeAvgKb <= 0.0f){
+					fileSizeAvgKb = results.filesizeKb;
+				}else{
+					fileSizeAvgKb = ofLerp(fileSizeAvgKb, results.filesizeKb, 0.1);
+				}
+			}
 			//ofLogNotice("ofxImageSequenceVideo") << ofGetFrameNum() << " - frame loaded! " << frame;
 			tasks.erase(tasks.begin() + i);
 		}
@@ -436,6 +443,14 @@ ofxImageSequenceVideo::LoadResults ofxImageSequenceVideo::loadFrameThread(int fr
 
 	uint64_t t = ofGetElapsedTimeMicros();
 	FrameInfo & curFrame = CURRENT_FRAME_ALT[frame];
+	LoadResults results;
+
+	if(reportFileSize){
+		auto myPath = std::filesystem::path(ofToDataPath(curFrame.filePath, true));
+		try {
+			results.filesizeKb = std::filesystem::file_size(myPath) / 1024.0f;
+		}catch(std::filesystem::filesystem_error& e){}
+	}
 	if(!useDXTCompression){
 		#if defined(USE_TURBO_JPEG)
 		string extension = ofFilePath::getFileExt(curFrame.filePath);
@@ -454,7 +469,6 @@ ofxImageSequenceVideo::LoadResults ofxImageSequenceVideo::loadFrameThread(int fr
 	}
 	curFrame.state = PixelState::THREAD_FINISHED_LOADING;
 	t = ofGetElapsedTimeMicros() - t;
-	LoadResults results;
 	results.elapsedTime = t / 1000.0f;
 	results.frame = frame;
 	return results;
@@ -515,25 +529,31 @@ void ofxImageSequenceVideo::eraseOutOfBufferPixelCache(){
 }
 
 
+void ofxImageSequenceVideo::setReportFileSize(bool report){
+	reportFileSize = report;
+}
+
+
 std::string ofxImageSequenceVideo::getStatus(){
 
 	if(!loaded) return "";
 
 	string msg = numThreads == 0 ? "Mode: Immediate" : "Mode: Async";
 	msg += "\nFrame: " + ofToString(currentFrame) + "/" + ofToString(numFrames);
-	msg += "\nPlaybackSpeed: " + ofToString(100 * playbackSpeed) + "%";
+	msg += "\nTime: " + ofToString(getPositionSeconds(), 2) + " sec";
+	msg += "\nPlaybackSpeed: " + ofToString(100 * playbackSpeed,1) + "%";
 
 	msg += "\nMovieDuration: " + secondsToHumanReadable(getMovieDuration(), 2);
 	if(numThreads > 0) msg += string("\nNumTasks: ") + getNumTasks();
 
 	if(numThreads > 0) msg += "\nBuffer: " + ofToString(100 * bufferFullness, 1) + "% [" + ofToString(numBufferFrames) + "]";
 	msg += "\nLoadTimeAvg: " + ofToString(loadTimeAvg, 2) + "ms";
+	if(reportFileSize) msg += "\nFileSizeAvg: " + ofToString(fileSizeAvgKb, 1) + " Kb";
 	msg += "\nFrameRate: " + ofToString(1.0 / frameDuration, 2) + "fps";
 	auto & texture = getTexture();
 	msg += "\nRes: " + ofToString(texture.getWidth(),0) + " x " + ofToString(texture.getHeight(),0);
 	msg += "\nKeepInGPU: " + string(keepTexturesInGpuMem ? "YES" : "FALSE");
 	msg += "\nDXT Compressed: " + string(useDXTCompression ? "YES" : "FALSE");
-
 	return msg;
 }
 

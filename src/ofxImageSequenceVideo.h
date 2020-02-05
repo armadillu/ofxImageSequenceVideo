@@ -23,7 +23,6 @@ public:
 
 	ofxImageSequenceVideo();
 	~ofxImageSequenceVideo();
-	
 
 	//There are basically 2 operation modes, ASYNC and INMEDIATE. if you specify numThreads = 0,
 	//everything will be in immediate mode. All work will be done in the main thread, blocking on update().
@@ -54,6 +53,7 @@ public:
 
 	//set to FALSE for it to avoid GL calls - only ofPixels will be loaded (handy to use it from a thread)
 	void setUseTexture(bool useTex){shouldLoadTexture = useTex;};
+	void setReportFileSize(bool report); //if true, player checks and reports file size of each frame - mostly to debug choque points / bottlenecks
 
 	//set the img sequence framerate (playback speed)
 	void setPlaybackFramerate(float framerate);
@@ -113,7 +113,6 @@ public:
 	std::string getNumTasks(){ return ofToString(tasks.size()) + "/" + ofToString(numThreads); }
 	float getBufferFullness(){ return bufferFullness;}
 	float getLoadTimeAvg(){ return loadTimeAvg; } //avg time to load a single frame from disk to pixels, in ms
-
 
 	struct EventInfo{
 		ofxImageSequenceVideo * who = nullptr;
@@ -193,6 +192,7 @@ protected:
 	struct LoadResults{
 		int frame;
 		float elapsedTime;
+		float filesizeKb;
 	};
 
 	float loadTimeAvg = 0.0f;
@@ -217,5 +217,8 @@ protected:
 	
     bool reverse = false; // set to true if we need to reverse the sequence
     bool reversing = false; // state for playing in reverse or sequentially
+
+	bool reportFileSize = true;
+	float fileSizeAvgKb = 0.0f;
 };
 
