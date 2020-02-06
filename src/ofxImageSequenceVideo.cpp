@@ -155,6 +155,8 @@ bool ofxImageSequenceVideo::loadImageSequence(const string & path, float frameRa
 		if(numThreads > 0){
 			handleThreadSpawn();
 		}
+		fileExtension = ofFilePath::getFileExt(CURRENT_FRAME_ALT[0].filePath);
+		std::transform(fileExtension.begin(), fileExtension.end(), fileExtension.begin(), asciitolower); //convert to lowercase
 		return true;
 	}else{
 		loaded = false;
@@ -476,9 +478,7 @@ ofxImageSequenceVideo::LoadResults ofxImageSequenceVideo::loadFrameThread(int fr
 	}
 	if(!useDXTCompression){
 		#if defined(USE_TURBO_JPEG)
-		string extension = ofFilePath::getFileExt(curFrame.filePath);
-		std::transform(extension.begin(), extension.end(), extension.begin(), asciitolower);
-		if(extension == "jpeg" || extension == "jpg"){
+		if(fileExtension == "jpeg" || fileExtension == "jpg"){
 			ofxTurboJpeg jpeg;
 			jpeg.load(curFrame.pixels, curFrame.filePath);
 		}else{
@@ -584,10 +584,11 @@ std::string ofxImageSequenceVideo::getStatus(){
 	msg += "\nLoadTimeAvg: " + ofToString(loadTimeAvg, 2) + "ms";
 	if(reportFileSize) msg += "\nFileSizeAvg: " + ofToString(fileSizeAvgKb, 1) + " Kb";
 	msg += "\nFrameRate: " + ofToString(1.0 / frameDuration, 2) + "fps";
+	msg += "\nFile Format: " + fileExtension;
 	auto & texture = getTexture();
 	msg += "\nRes: " + ofToString(texture.getWidth(),0) + " x " + ofToString(texture.getHeight(),0);
 	msg += "\nKeepInGPU: " + string(keepTexturesInGpuMem ? "YES" : "FALSE");
-	msg += "\nDXT Compressed: " + string(useDXTCompression ? "YES" : "FALSE");
+
 	return msg;
 }
 
@@ -783,9 +784,7 @@ void ofxImageSequenceVideo::loadPixelsNow(int newFrame, int oldFrame){
 		auto & newFrameData = CURRENT_FRAME_ALT[newFrame];
 		if(!useDXTCompression){
 			#if defined(USE_TURBO_JPEG)
-			string extension = ofFilePath::getFileExt(newFrameData.filePath);
-			std::transform(extension.begin(), extension.end(), extension.begin(), asciitolower);
-			if(extension == "jpeg" || extension == "jpg"){
+			if(fileExtension == "jpeg" || fileExtension == "jpg"){
 				//TS_START_ACC("load jpg disk");
 				ofxTurboJpeg jpeg;
 				jpeg.load(currentPixels, newFrameData.filePath);

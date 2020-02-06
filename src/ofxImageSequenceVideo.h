@@ -205,6 +205,7 @@ protected:
 	int numThreads = 3;
 
 	bool useDXTCompression = false;
+	string fileExtension; //jpg, tiff, dxt, etc
 
 	ofxImageSequenceVideo::LoadResults loadFrameThread(int frame);
 
