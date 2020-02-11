@@ -407,7 +407,7 @@ void ofxImageSequenceVideo::handleThreadCleanup(){
 				curFrame.compressedPixels = ofxDXT::Data();
 				curFrame.pixState = PixelState::NOT_LOADED;
 				curFrame.shouldDisregardWhenLoaded = false;
-				//ofLogWarning() << "thread cleanup " << results.frame;
+				ofLogWarning("ofxImageSequenceVideo") << "thread cleanup frame " << results.frame;
 			}
 			//ofLogNotice("ofxImageSequenceVideo") << ofGetFrameNum() << " - frame loaded! " << frame;
 			tasks.erase(tasks.begin() + i);
@@ -543,7 +543,7 @@ void ofxImageSequenceVideo::eraseOutOfBufferPixelCache(){
 		}
 		if(curFrame.pixState == PixelState::LOADING){
 			curFrame.shouldDisregardWhenLoaded = true;
-			ofLogWarning("ofxImageSequenceVideo") << "set to erase later " << i;
+			ofLogWarning("ofxImageSequenceVideo") << "set to erase later frame " << i;
 		}
 	}
 
@@ -556,7 +556,7 @@ void ofxImageSequenceVideo::eraseOutOfBufferPixelCache(){
 		}
 		if(curFrame.pixState == PixelState::LOADING){
 			curFrame.shouldDisregardWhenLoaded = true;
-			ofLogWarning("ofxImageSequenceVideo") << "set to erase later " << i;
+			ofLogWarning("ofxImageSequenceVideo") << "set to erase later frame " << i;
 		}
 	}
 }
