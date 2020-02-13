@@ -128,6 +128,8 @@ public:
 	//get a sorted list of all imgs in a dir
 	static vector<string> getImagesAtDirectory(const string & path, bool useDxtCompression);
 
+	static char asciitolower(char in);
+
 protected:
 
 	static vector<string> getSupportedImageTypes(){ return{"tga", "gif", "jpeg", "jpg", "jp2", "bmp", "png", "tif", "tiff"};}
@@ -230,5 +232,6 @@ protected:
 
 	bool reportFileSize = true;
 	float fileSizeAvgKb = 0.0f;
+
 };
 

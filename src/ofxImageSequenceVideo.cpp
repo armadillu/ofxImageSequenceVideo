@@ -33,13 +33,6 @@
 #undef STB_IMAGE_IMPLEMENTATION
 #endif
 
-char asciitolower(char in) {
-	if (in <= 'Z' && in >= 'A')
-		return in - ('Z' - 'z');
-	return in;
-}
-
-
 void ofxImageSequenceVideo::getImageInfo(const std::string & filePath, int & width, int & height, int & numChannels, bool & imgOK){
 	std::string path = ofToDataPath(filePath, true);
 	int ret = stbi_info(path.c_str(), &width, &height, &numChannels);
@@ -156,7 +149,7 @@ bool ofxImageSequenceVideo::loadImageSequence(const string & path, float frameRa
 			handleThreadSpawn();
 		}
 		fileExtension = ofFilePath::getFileExt(CURRENT_FRAME_ALT[0].filePath);
-		std::transform(fileExtension.begin(), fileExtension.end(), fileExtension.begin(), asciitolower); //convert to lowercase
+		std::transform(fileExtension.begin(), fileExtension.end(), fileExtension.begin(), ofxImageSequenceVideo::asciitolower); //convert to lowercase
 		return true;
 	}else{
 		loaded = false;
@@ -977,6 +970,13 @@ std::string ofxImageSequenceVideo::secondsToHumanReadable(float secs, int decima
 		}
 	}
 	return ret;
+}
+
+
+char ofxImageSequenceVideo::asciitolower(char in){
+	if (in <= 'Z' && in >= 'A')
+		return in - ('Z' - 'z');
+	return in;
 }
 
 
