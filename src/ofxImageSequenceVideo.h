@@ -55,6 +55,10 @@ public:
 	void setUseTexture(bool useTex){shouldLoadTexture = useTex;};
 	void setReportFileSize(bool report); //if true, player checks and reports file size of each frame - mostly to debug choque points / bottlenecks
 
+	//if true, if the computer can play the animation fast enough, it will hold up  playback until the frame is loaded
+	//(ie play all frames). if false, we can skip frames for playback.
+	void setHoldPlaybackWhenFramesArentReady(bool hold);
+
 	//set the img sequence framerate (playback speed)
 	void setPlaybackFramerate(float framerate);
 	float getPlaybackFramerate(){return 1.0f / frameDuration;}
@@ -156,6 +160,9 @@ protected:
 	bool loaded = false;
 	string imgSequencePath;
 	bool keepTexturesInGpuMem = false;
+	bool playAllFrames = false; //if true, dont advance to next until current frame has been displayed.
+								//if the computer struggles to load files fast enough, the playback will lag.
+								//if false, it will try skip frames to maintain playback speed; but playback will be very jerky if computer can't keep up
 
 	void advanceFrameInternal();
 	

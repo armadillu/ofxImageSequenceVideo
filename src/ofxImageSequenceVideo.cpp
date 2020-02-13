@@ -226,6 +226,10 @@ size_t ofxImageSequenceVideo::getEstimatdVramUse(){
 	}
 }
 
+void ofxImageSequenceVideo::setHoldPlaybackWhenFramesArentReady(bool hold){
+	playAllFrames = hold;
+}
+
 void ofxImageSequenceVideo::update(float dt){
 
 	if(!loaded) return;
@@ -248,6 +252,7 @@ void ofxImageSequenceVideo::update(float dt){
 	}else{
 		if(frameOnScreenTime >= frameDuration){
 			numFramesToAdvance = int(frameOnScreenTime / frameDuration);
+			if(playAllFrames && numFramesToAdvance > 1) numFramesToAdvance = 1;
 		}
 	}
 
@@ -407,7 +412,7 @@ void ofxImageSequenceVideo::handleThreadCleanup(){
 				curFrame.compressedPixels = ofxDXT::Data();
 				curFrame.pixState = PixelState::NOT_LOADED;
 				curFrame.shouldDisregardWhenLoaded = false;
-				ofLogWarning("ofxImageSequenceVideo") << "thread cleanup frame " << results.frame;
+				//ofLogWarning("ofxImageSequenceVideo") << "thread cleanup frame " << results.frame;
 			}
 			//ofLogNotice("ofxImageSequenceVideo") << ofGetFrameNum() << " - frame loaded! " << frame;
 			tasks.erase(tasks.begin() + i);
@@ -490,8 +495,27 @@ ofxImageSequenceVideo::LoadResults ofxImageSequenceVideo::loadFrameThread(int fr
 	}else{
 		ofxDXT::loadFromDisk(curFrame.filePath, curFrame.compressedPixels);
 	}
-	//ofSleepMillis(80); //testing large assets
+
+	//ofSleepMillis(130); //testing large assets
+
 	results.shouldBeDisregaded = curFrame.shouldDisregardWhenLoaded;
+
+	//test if the loading finished too late, if so, set this frame to be disregarded
+	int low = currentFrame;
+	int high = (currentFrame + numBufferFrames) % numFrames;
+	if(low < high){ //normal case, no timeleline split
+		if(frame < low || frame > high){
+			//ofLogWarning("ofxImageSequenceVideo") << "case A: we should delete frame " << frame << " dis: " << results.shouldBeDisregaded ;
+			results.shouldBeDisregaded |= true;
+		}
+	}else{ // split case, buffer is ahead and looped back to zero
+		if(frame > high && frame < low){
+			//ofLogWarning("ofxImageSequenceVideo") << "case B RIGHT: we should delete frame " << frame << " dis: " << results.shouldBeDisregaded ;
+			results.shouldBeDisregaded |= true;
+		}
+	}
+
+	//update state, prepare report
 	curFrame.pixState = PixelState::THREAD_FINISHED_LOADING;
 	t = ofGetElapsedTimeMicros() - t;
 	results.elapsedTime = t / 1000.0f;
