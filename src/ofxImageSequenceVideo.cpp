@@ -293,11 +293,11 @@ void ofxImageSequenceVideo::update(float dt){
 		bool loop = (shouldLoop || (!shouldLoop && (currentFrame <= (numFrames - 1))));
 		bool isTextureReady = CURRENT_FRAME_ALT[currentFrame].texState == TextureState::LOADED;
 
-		//note we hold playback until pixels are ready (instead of dropping frames - otherwise things get very complicated)
 		if(playback && (numFramesToAdvance > 0) && loop && (pixelsReady || isTextureReady)){
 			for(int i = 0; i < numFramesToAdvance; i++){
 				handleScreenTimeCounters(dt);
 				advanceFrameInternal();
+				handleLooping(true);
 			}
 		}
 
@@ -358,17 +358,12 @@ void ofxImageSequenceVideo::handleLooping(bool triggerEvents){
 
 	if(shouldLoop){ //loop movie
 		if(currentFrame >= numFrames){
-			
-            if(reverse)
-            {
+            if(reverse){
                 currentFrame = numFrames - 1;
                 reversing = true;
-            }
-            else
-            {
+            }else{
                 currentFrame = 0;
             }
-            
             
 			if(triggerEvents){
 				EventInfo info;
@@ -750,7 +745,7 @@ void ofxImageSequenceVideo::advanceFrameInternal(){
     }
 	
 
-	if(!shouldLoop && currentFrame == numFrames -1){
+	if(!shouldLoop && currentFrame >= numFrames -1){
 		EventInfo info;
 		info.who = this;
         playback = false;
