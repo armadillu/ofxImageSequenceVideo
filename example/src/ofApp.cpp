@@ -47,7 +47,7 @@ void ofApp::setup(){
 		VideoUnit * v = new VideoUnit();
 		v->name = n;
 		//v->video.setup(buffer, (c==0) ? 0 : numThreads);
-		v->video.setup(buffer, numThreads);
+		v->video.setup(numThreads, buffer, true, false);
 		TS_START("load " + v->name);
 		v->video.loadImageSequence(v->name, framerate);
 		TS_STOP("load " + v->name);
