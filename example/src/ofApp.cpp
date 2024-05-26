@@ -194,7 +194,7 @@ void ofApp::keyPressed(int key){
 void ofApp::threadedFunction(){
 
 	ofxImageSequenceVideo videoFromThread;
-	videoFromThread.setup(0, 0);
+	videoFromThread.setup(0, 0, true, false);
 	videoFromThread.setUseTexture(false);
 	videoFromThread.loadImageSequence("jpeg", 60);
 	videoFromThread.setLoop(true);
