@@ -128,6 +128,7 @@ bool ofxImageSequenceVideo::loadImageSequence(const string & path, float frameRa
 		numFrames = num;
 		frameDuration = 1.0 / frameRate;
 		currentFrame = 0;
+		lastDisplayedFrame = -1;
 		frameOnScreenTime = -1; //force a data load!
 		newData = false;
 		if(shouldLoadTexture){
@@ -145,11 +146,11 @@ bool ofxImageSequenceVideo::loadImageSequence(const string & path, float frameRa
 			CURRENT_FRAME_ALT[i].filePath = path + "/" + fileNames[i];
 			//ofLogNotice("ofxImageSequenceVideo") << CURRENT_FRAME_ALT[i].filePath;
 		}
+		fileExtension = ofFilePath::getFileExt(CURRENT_FRAME_ALT[0].filePath);
+		std::transform(fileExtension.begin(), fileExtension.end(), fileExtension.begin(), ofxImageSequenceVideo::asciitolower); //convert to lowercase
 		if(numThreads > 0){
 			handleThreadSpawn();
 		}
-		fileExtension = ofFilePath::getFileExt(CURRENT_FRAME_ALT[0].filePath);
-		std::transform(fileExtension.begin(), fileExtension.end(), fileExtension.begin(), ofxImageSequenceVideo::asciitolower); //convert to lowercase
 		return true;
 	}else{
 		loaded = false;
@@ -253,7 +254,9 @@ void ofxImageSequenceVideo::update(float dt){
 
 		FrameInfo & curFrame = CURRENT_FRAME_ALT[currentFrame];
 
-		bool pixelsAreReady = curFrame.pixState == PixelState::THREAD_FINISHED_LOADING;
+		bool pixelsAreReady = (curFrame.pixState == PixelState::THREAD_FINISHED_LOADING ||
+			(curFrame.pixState == PixelState::LOADED && currentFrame != lastDisplayedFrame)) &&
+			(curFrame.pixels.isAllocated() || curFrame.compressedPixels.size() > 0);
 
 		if(pixelsAreReady){ //1st update() call in which the pixels are available - load to GPU and change state to LOADED
 
@@ -284,6 +287,7 @@ void ofxImageSequenceVideo::update(float dt){
 				}
 			}
 			curFrame.pixState = PixelState::LOADED;
+			lastDisplayedFrame = currentFrame;
 			newData = true;
 		}
 
@@ -394,7 +398,12 @@ void ofxImageSequenceVideo::handleThreadCleanup(){
 					fileSizeAvgKb = ofLerp(fileSizeAvgKb, results.filesizeKb, 0.1);
 				}
 			}
-			if (results.shouldBeDisregaded){
+			const bool keepOpeningFrame = keepFirstBufferFrames && results.frame < numBufferFrames;
+			if (!results.shouldBeDisregaded || keepOpeningFrame){
+				CURRENT_FRAME_ALT[results.frame].pixState = PixelState::THREAD_FINISHED_LOADING;
+				CURRENT_FRAME_ALT[results.frame].shouldDisregardWhenLoaded = false;
+			}
+			if (results.shouldBeDisregaded && !keepOpeningFrame){
 				FrameInfo & curFrame = CURRENT_FRAME_ALT[results.frame];
 				curFrame.pixels.clear();
 				curFrame.compressedPixels = ofxDXT::Data();
@@ -504,7 +513,6 @@ ofxImageSequenceVideo::LoadResults ofxImageSequenceVideo::loadFrameThread(int fr
 	}
 
 	//update state, prepare report
-	curFrame.pixState = PixelState::THREAD_FINISHED_LOADING;
 	t = ofGetElapsedTimeMicros() - t;
 	results.elapsedTime = t / 1000.0f;
 	results.frame = frame;
@@ -547,6 +555,7 @@ void ofxImageSequenceVideo::eraseOutOfBufferPixelCache(){
 	}
 
 	for(int i = start; i < currentFrame; i++){
+		if(keepFirstBufferFrames && i < numBufferFrames) continue;
 		FrameInfo & curFrame = CURRENT_FRAME_ALT[i];
 		if(curFrame.pixState == PixelState::THREAD_FINISHED_LOADING || curFrame.pixState == PixelState::LOADED){
 			curFrame.pixels.clear();
@@ -560,6 +569,7 @@ void ofxImageSequenceVideo::eraseOutOfBufferPixelCache(){
 	}
 
 	for(int i = currentFrame + numBufferFrames; i < numFrames; i++){
+		if(keepFirstBufferFrames && i < numBufferFrames) continue;
 		FrameInfo & curFrame = CURRENT_FRAME_ALT[i];
 		if(curFrame.pixState == PixelState::THREAD_FINISHED_LOADING || curFrame.pixState == PixelState::LOADED){
 			curFrame.pixels.clear();
@@ -728,7 +738,8 @@ void ofxImageSequenceVideo::advanceFrameInternal(){
 	if(numThreads > 0){ //ASYNC
 		auto & curFrame = CURRENT_FRAME_ALT[currentFrame];
 		bool loaded = (curFrame.pixState == PixelState::THREAD_FINISHED_LOADING || curFrame.pixState == PixelState::LOADED);
-		if(loaded && (curFrame.pixels.isAllocated() || curFrame.compressedPixels.size() > 0)){ //unload old pixels
+		if(loaded && !(keepFirstBufferFrames && currentFrame < numBufferFrames) &&
+		   (curFrame.pixels.isAllocated() || curFrame.compressedPixels.size() > 0)){ //unload old pixels
 			curFrame.pixState = PixelState::NOT_LOADED;
 			curFrame.pixels.clear();
 			curFrame.compressedPixels = ofxDXT::Data(); //clear pixels data
@@ -868,6 +879,25 @@ int ofxImageSequenceVideo::getNumBufferFrames(){
 	return numBufferFrames;
 }
 
+
+
+int ofxImageSequenceVideo::getReadyBufferFrames(int maxFrames, bool & decodeFailed){
+	decodeFailed = false;
+	if(!loaded || numThreads <= 0) return 0;
+	int ready = 0;
+	const int limit = std::min({maxFrames, numBufferFrames, numFrames});
+	for(int i = 0; i < limit; ++i){
+		auto & frame = CURRENT_FRAME_ALT[(currentFrame + i) % numFrames];
+		if(frame.texState == TextureState::LOADED){ ++ready; continue; }
+		if(frame.pixState != PixelState::THREAD_FINISHED_LOADING && frame.pixState != PixelState::LOADED) break;
+		if(!frame.pixels.isAllocated() && frame.compressedPixels.size() == 0){
+			decodeFailed = true;
+			break;
+		}
+		++ready;
+	}
+	return ready;
+}
 
 
 bool ofxImageSequenceVideo::arePixelsNew(){

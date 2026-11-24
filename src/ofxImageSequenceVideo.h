@@ -48,6 +48,11 @@ public:
 	void setKeepTexturesInGpuMem(bool keep){keepTexturesInGpuMem = keep; }
 	bool getKeepTexturesInGpuMem(){return keepTexturesInGpuMem;}
 
+	// In threaded mode, retain the first bufferSize decoded frames in CPU memory.
+	// Set before loadImageSequence(); explicit eraseAllPixelCache() still clears them.
+	void setKeepFirstBufferFrames(bool keep){keepFirstBufferFrames = keep;}
+	bool getKeepFirstBufferFrames() const {return keepFirstBufferFrames;}
+
 	//this call is a bit expensive as we need to walk all the textures, use sparsingly or for debug only.
 	bool areAllTexturesPreloaded(); //(in In Gpu Mem), only makes sense when setKeepTexturesInGpuMem(TRUE);
 
@@ -55,7 +60,7 @@ public:
 	void setUseTexture(bool useTex){shouldLoadTexture = useTex;};
 	void setReportFileSize(bool report); //if true, player checks and reports file size of each frame - mostly to debug choque points / bottlenecks
 
-	//if true, if the computer can play the animation fast enough, it will hold up  playback until the frame is loaded
+	//if true, if the computer cant play the animation fast enough, it will hold up  playback until the frame is loaded
 	//(ie play all frames). if false, we can skip frames for playback.
 	void setHoldPlaybackWhenFramesArentReady(bool hold);
 
@@ -63,6 +68,8 @@ public:
 	void setPlaybackFramerate(float framerate);
 	float getPlaybackFramerate(){return 1.0f / frameDuration;}
 	int getNumBufferFrames();
+	// Count consecutive decoded frames from the playhead. Reports decode failures.
+	int getReadyBufferFrames(int maxFrames, bool & decodeFailed);
 
 	void update(float dt);
 
@@ -162,6 +169,7 @@ protected:
 	bool loaded = false;
 	string imgSequencePath;
 	bool keepTexturesInGpuMem = false;
+	bool keepFirstBufferFrames = false;
 	bool playAllFrames = false; //if true, dont advance to next until current frame has been displayed.
 								//if the computer struggles to load files fast enough, the playback will lag.
 								//if false, it will try skip frames to maintain playback speed; but playback will be very jerky if computer can't keep up
@@ -174,6 +182,7 @@ protected:
 	void handleLooping(bool triggerEvents);
 
 	int currentFrame = 0;
+	int lastDisplayedFrame = -1;
 	float frameOnScreenTime = 0.0f;
 
 	int numFrames = 0;

@@ -9,16 +9,18 @@ common:
 
 	# dependencies with other addons, a list of them separated by spaces 
 	# or use += in several lines
-	ADDON_DEPENDENCIES = ofxPoco
+	ADDON_DEPENDENCIES = ofxPoco ofxDXT ofxTimeMeasurements
+	# Add ofxTurboJpeg to the project when USE_TURBO_JPEG is enabled.
 	
 	# include search paths, this will be usually parsed from the file system
 	# but if the addon or addon libraries need special search paths they can be
 	# specified here separated by spaces or one per line using +=
-	# ADDON_INCLUDES =
+	ADDON_INCLUDES += lib
+	ADDON_INCLUDES += lib/stb
 	
 	# any special flag that should be passed to the compiler when using this
 	# addon
-	# ADDON_CFLAGS =
+	ADDON_CFLAGS = -DOFX_IMAGE_SEQUENCE_VIDEO__STB_IMAGE_IMPLEMENTATION
 	
 	# any special flag that should be passed to the linker when using this
 	# addon, also used for system libraries with -lname
@@ -44,3 +46,5 @@ common:
 	# when parsing the file system looking for libraries exclude this for all or
 	# a specific platform
 	# ADDON_LIBS_EXCLUDE =
+
+	ADDON_DEFINES = OFX_IMAGE_SEQUENCE_VIDEO__STB_IMAGE_IMPLEMENTATION
