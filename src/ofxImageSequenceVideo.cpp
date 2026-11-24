@@ -226,6 +226,7 @@ void ofxImageSequenceVideo::setHoldPlaybackWhenFramesArentReady(bool hold){
 
 void ofxImageSequenceVideo::update(float dt){
 
+	waitingForFrame = false;
 	if(!loaded) return;
 
 	newData = false;
@@ -296,6 +297,7 @@ void ofxImageSequenceVideo::update(float dt){
 		bool pixelsReady = (state == PixelState::THREAD_FINISHED_LOADING|| state == PixelState::LOADED);
 		bool loop = (shouldLoop || (!shouldLoop && (currentFrame <= (numFrames - 1))));
 		bool isTextureReady = CURRENT_FRAME_ALT[currentFrame].texState == TextureState::LOADED;
+		waitingForFrame = playback && numFramesToAdvance > 0 && loop && !(pixelsReady || isTextureReady);
 
 		if(playback && (numFramesToAdvance > 0) && loop && (pixelsReady || isTextureReady)){
 			for(int i = 0; i < numFramesToAdvance; i++){
@@ -846,7 +848,15 @@ void ofxImageSequenceVideo::setPosition(float normalizedPos){
 
 void ofxImageSequenceVideo::setPositionSeconds(float seconds){
 	if(!loaded) return;
-	setPosition(seconds / getMovieDuration());
+	const float position = ofClamp(seconds, 0.0f, getMovieDuration());
+	const int oldFrame = currentFrame;
+	currentFrame = std::min(static_cast<int>(position / frameDuration), numFrames - 1);
+	frameOnScreenTime = ofClamp(position - currentFrame * frameDuration, 0.0f, frameDuration);
+	if(numThreads > 0){
+		eraseOutOfBufferPixelCache();
+	}else{
+		loadPixelsNow(currentFrame, oldFrame);
+	}
 }
 
 
@@ -864,7 +874,7 @@ float ofxImageSequenceVideo::getPosition(){
 
 float ofxImageSequenceVideo::getPositionSeconds(){
 	if (!loaded) return -1;
-	return getPosition() * getMovieDuration();
+	return currentFrame * frameDuration + ofClamp(frameOnScreenTime, 0.0f, frameDuration);
 }
 
 

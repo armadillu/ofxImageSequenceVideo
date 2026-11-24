@@ -83,7 +83,9 @@ public:
 	void play();
 	void pause();
     
-    bool isPlaying(); 
+    bool isPlaying();
+	// True after update() when threaded playback is waiting for the current frame.
+	bool isWaitingForFrame() const { return waitingForFrame; } 
 
 	void setPlaybackSpeed(float speed){playbackSpeed = speed;}; //1.0 means normal speed. don't go negative or weird things will happen!
 	float getPlaybackSpeed(){return playbackSpeed;}
@@ -192,6 +194,7 @@ protected:
 	bool texNeedsLoad = false;
 
 	bool playback = false;
+	bool waitingForFrame = false;
 	float playbackSpeed = 1.0;
 	bool shouldLoop = true;
 
